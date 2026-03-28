@@ -91,6 +91,69 @@
             {{end}}
         </section>
         {{end}}
+
+        <section class="api-section playground-section">
+            <h2>Playground</h2>
+            <div class="playground" data-method="{{.Endpoint.Method}}" data-path="{{.Endpoint.Path}}">
+                {{if .Servers}}
+                <div class="playground-field">
+                    <label>Server</label>
+                    <select class="playground-input playground-server">
+                        {{range .Servers}}
+                        <option value="{{.URL}}">{{.URL}}{{if .Description}} — {{.Description}}{{end}}</option>
+                        {{end}}
+                    </select>
+                </div>
+                {{end}}
+
+                {{range .Endpoint.Parameters}}
+                <div class="playground-field">
+                    <label>
+                        <code>{{.Name}}</code>
+                        <span class="param-in">{{.In}}</span>
+                        {{if .Required}}<span class="required">*</span>{{end}}
+                    </label>
+                    <input type="text" class="playground-input playground-param"
+                           data-name="{{.Name}}"
+                           data-in="{{.In}}"
+                           data-required="{{.Required}}"
+                           placeholder="{{if .Schema}}{{.Schema.TypeString}}{{end}}{{if .Description}} — {{.Description}}{{end}}">
+                </div>
+                {{end}}
+
+                {{if .Endpoint.RequestBody}}
+                <div class="playground-field">
+                    <label>Request Body</label>
+                    <textarea class="playground-input playground-body" rows="6" placeholder='{"key": "value"}'></textarea>
+                </div>
+                {{end}}
+
+                <div class="playground-field">
+                    <label>Headers <span class="text-muted">(optional, one per line: Header: Value)</span></label>
+                    <textarea class="playground-input playground-headers" rows="3" placeholder="Authorization: Bearer token&#10;Content-Type: application/json"></textarea>
+                </div>
+
+                <button class="playground-send" onclick="sendPlaygroundRequest(this)">
+                    <span class="method-badge method-{{.Endpoint.Method | lower}}">{{.Endpoint.Method}}</span>
+                    Send Request
+                </button>
+
+                <div class="playground-result" style="display: none;">
+                    <div class="playground-result-header">
+                        <span class="playground-status"></span>
+                        <span class="playground-time"></span>
+                    </div>
+                    <div class="playground-response-headers">
+                        <h4>Response Headers</h4>
+                        <pre class="playground-response-headers-content"></pre>
+                    </div>
+                    <div class="playground-response-body">
+                        <h4>Response Body</h4>
+                        <pre class="playground-response-body-content"></pre>
+                    </div>
+                </div>
+            </div>
+        </section>
     </article>
 </div>
 

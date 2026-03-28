@@ -428,12 +428,14 @@ func (g *Generator) buildSingleAPI(tmpl *template.Template, doc *openapi.APIDoc,
 			TagGroups  map[string][]openapi.Endpoint
 			ActiveSlug string
 			BasePath   string
+			Servers    []openapi.Server
 		}{
 			Config:     g.Config,
 			Endpoint:   endpoint,
 			TagGroups:  doc.TagGroups,
 			ActiveSlug: endpoint.Slug,
 			BasePath:   basePath,
+			Servers:    doc.Servers,
 		}
 
 		html, err := g.renderPage(tmpl, "api_endpoint", epData, endpoint.Method+" "+endpoint.Path)
