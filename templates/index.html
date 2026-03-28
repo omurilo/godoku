@@ -1,0 +1,9 @@
+<div class="hero">
+    <h1>{{.Config.Title}}</h1>
+    <p class="hero-description">{{.Config.Description}}</p>
+    <div class="hero-links">
+        {{range .Config.Navigation}}
+        <a href="{{.Path}}" class="btn">{{.Label}}</a>
+        {{end}}
+    </div>
+</div>

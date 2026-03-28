@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="{{.Config.Language}}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.PageTitle}} - {{.Config.Title}}</title>
+    <meta name="description" content="{{.Config.Description}}">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-inner">
+            <a href="/" class="logo">{{.Config.Title}}</a>
+            <div class="nav-links">
+                {{range .NavItems}}
+                <a href="{{.Path}}" class="nav-link">{{.Label}}</a>
+                {{end}}
+            </div>
+        </div>
+    </nav>
+    <main class="main">
+        {{.Body}}
+    </main>
+    <footer class="footer">
+        <div class="footer-inner">
+            <p>Built with <a href="https://github.com/omurilo/godoku">Godoku</a></p>
+        </div>
+    </footer>
+    <script src="/static/script.js"></script>
+</body>
+</html>

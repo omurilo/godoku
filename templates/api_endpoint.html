@@ -1,0 +1,129 @@
+<div class="docs-layout">
+    <aside class="sidebar">
+        <h3 class="sidebar-title">API Reference</h3>
+        {{range $tag, $endpoints := .TagGroups}}
+        <div class="sidebar-group">
+            <h4 class="sidebar-group-title">{{$tag}}</h4>
+            <ul class="sidebar-nav">
+                {{range $endpoints}}
+                <li>
+                    <a href="{{$.BasePath}}/{{.Slug}}" class="sidebar-link {{if eq .Slug $.ActiveSlug}}active{{end}}">
+                        <span class="method-badge method-{{.Method | lower}}">{{.Method}}</span>
+                        <span class="endpoint-path">{{.Path}}</span>
+                    </a>
+                </li>
+                {{end}}
+            </ul>
+        </div>
+        {{end}}
+    </aside>
+    <article class="content">
+        <div class="endpoint-header">
+            <span class="method-badge method-{{.Endpoint.Method | lower}} large">{{.Endpoint.Method}}</span>
+            <h1 class="endpoint-title">{{.Endpoint.Path}}</h1>
+        </div>
+        {{if .Endpoint.Deprecated}}<div class="deprecated-badge">Deprecated</div>{{end}}
+        {{if .Endpoint.Summary}}<p class="endpoint-summary-text">{{.Endpoint.Summary}}</p>{{end}}
+        {{if .Endpoint.Description}}<div class="endpoint-description">{{.Endpoint.Description}}</div>{{end}}
+
+        {{if .Endpoint.Parameters}}
+        <section class="api-section">
+            <h2>Parameters</h2>
+            <table class="params-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>In</th>
+                        <th>Type</th>
+                        <th>Required</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .Endpoint.Parameters}}
+                    <tr>
+                        <td><code>{{.Name}}</code></td>
+                        <td><span class="param-in">{{.In}}</span></td>
+                        <td>{{if .Schema}}{{.Schema.TypeString}}{{end}}</td>
+                        <td>{{if .Required}}<span class="required">Yes</span>{{else}}No{{end}}</td>
+                        <td>{{.Description}}</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </section>
+        {{end}}
+
+        {{if .Endpoint.RequestBody}}
+        <section class="api-section">
+            <h2>Request Body</h2>
+            {{if .Endpoint.RequestBody.Description}}<p>{{.Endpoint.RequestBody.Description}}</p>{{end}}
+            {{if .Endpoint.RequestBody.Required}}<p class="required">Required</p>{{end}}
+            {{range $contentType, $media := .Endpoint.RequestBody.Content}}
+            <div class="media-type">
+                <h4>{{$contentType}}</h4>
+                {{if $media.Schema}}
+                {{template "schema" $media.Schema}}
+                {{end}}
+            </div>
+            {{end}}
+        </section>
+        {{end}}
+
+        {{if .Endpoint.Responses}}
+        <section class="api-section">
+            <h2>Responses</h2>
+            {{range $code, $resp := .Endpoint.Responses}}
+            <div class="response-item">
+                <div class="response-header">
+                    <span class="status-code status-{{statusClass $code}}">{{$code}}</span>
+                    <span class="response-desc">{{$resp.Description}}</span>
+                </div>
+                {{range $contentType, $media := $resp.Content}}
+                <div class="media-type">
+                    <h4>{{$contentType}}</h4>
+                    {{if $media.Schema}}
+                    {{template "schema" $media.Schema}}
+                    {{end}}
+                </div>
+                {{end}}
+            </div>
+            {{end}}
+        </section>
+        {{end}}
+    </article>
+</div>
+
+{{define "schema"}}
+<div class="schema">
+    {{if .Ref}}<code class="schema-ref">{{.TypeString}}</code>{{end}}
+    {{if .Type}}<span class="schema-type">{{.TypeString}}</span>{{end}}
+    {{if .Description}}<p class="schema-desc">{{.Description}}</p>{{end}}
+    {{if .Properties}}
+    <table class="schema-table">
+        <thead>
+            <tr>
+                <th>Property</th>
+                <th>Type</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range $name, $prop := .Properties}}
+            <tr>
+                <td><code>{{$name}}</code></td>
+                <td>{{$prop.TypeString}}</td>
+                <td>{{$prop.Description}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{end}}
+    {{if and (eq .Type "array") .Items}}
+    <div class="array-items">
+        <span>Items: </span>
+        {{template "schema" .Items}}
+    </div>
+    {{end}}
+</div>
+{{end}}

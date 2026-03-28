@@ -1,0 +1,69 @@
+<div class="docs-layout">
+    <aside class="sidebar">
+        <h3 class="sidebar-title">{{.SectionTitle}}</h3>
+        <ul class="sidebar-nav">
+            {{range .RootPages}}
+            <li><a href="{{.URLPath}}" class="sidebar-link {{if eq .Slug $.ActiveSlug}}active{{end}}">{{.Title}}</a></li>
+            {{end}}
+        </ul>
+        {{range .Groups}}
+        <div class="sidebar-group">
+            <h4 class="sidebar-group-title">{{.Title}}</h4>
+            <ul class="sidebar-nav">
+                {{range .Pages}}
+                <li><a href="{{.URLPath}}" class="sidebar-link {{if eq .Slug $.ActiveSlug}}active{{end}}">{{.Title}}</a></li>
+                {{end}}
+            </ul>
+        </div>
+        {{end}}
+    </aside>
+    <article class="content">
+        {{if .ActivePage}}
+        <h1>{{.ActivePage.Title}}</h1>
+        {{if .ActivePage.Date}}<time class="page-date">{{.ActivePage.Date}}</time>{{end}}
+        {{if .ActivePage.Author}}<span class="page-author">by {{.ActivePage.Author}}</span>{{end}}
+        <div class="markdown-body">
+            {{.ActivePage.Content | safeHTML}}
+        </div>
+        <nav class="page-nav">
+            {{if .PrevPage}}
+            <a href="{{.PrevPage.URLPath}}" class="page-nav-link prev">
+                <span class="page-nav-label">Previous</span>
+                <span class="page-nav-title">{{.PrevPage.Title}}</span>
+            </a>
+            {{else}}
+            <span></span>
+            {{end}}
+            {{if .NextPage}}
+            <a href="{{.NextPage.URLPath}}" class="page-nav-link next">
+                <span class="page-nav-label">Next</span>
+                <span class="page-nav-title">{{.NextPage.Title}}</span>
+            </a>
+            {{end}}
+        </nav>
+        {{else}}
+        <h1>{{.SectionTitle}}</h1>
+        <div class="page-list">
+            {{range .RootPages}}
+            <a href="{{.URLPath}}" class="page-card">
+                <h3>{{.Title}}</h3>
+                {{if .Description}}<p>{{.Description}}</p>{{end}}
+            </a>
+            {{end}}
+            {{range .Groups}}
+            <div class="page-group">
+                <h2>{{.Title}}</h2>
+                <div class="page-list">
+                    {{range .Pages}}
+                    <a href="{{.URLPath}}" class="page-card">
+                        <h3>{{.Title}}</h3>
+                        {{if .Description}}<p>{{.Description}}</p>{{end}}
+                    </a>
+                    {{end}}
+                </div>
+            </div>
+            {{end}}
+        </div>
+        {{end}}
+    </article>
+</div>

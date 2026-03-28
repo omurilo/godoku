@@ -1,0 +1,15 @@
+<div class="docs-layout">
+    <article class="content full-width">
+        <h1>API Reference</h1>
+        <p>Browse the available API specifications.</p>
+        <div class="page-list">
+            {{range .APIs}}
+            <a href="/api/{{.Slug}}" class="page-card">
+                <h3>{{.Title}}</h3>
+                {{if .Description}}<p>{{.Description}}</p>{{end}}
+                <span class="api-version-badge">v{{.Version}}</span>
+            </a>
+            {{end}}
+        </div>
+    </article>
+</div>

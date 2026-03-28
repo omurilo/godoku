@@ -1,0 +1,237 @@
+openapi: "3.0.3"
+info:
+  title: "Example API"
+  description: "An example API to demonstrate Godoku API documentation."
+  version: "1.0.0"
+servers:
+  - url: "https://api.example.com/v1"
+    description: "Production"
+  - url: "http://localhost:8080/v1"
+    description: "Development"
+tags:
+  - name: "users"
+    description: "User management"
+  - name: "items"
+    description: "Item operations"
+paths:
+  /users:
+    get:
+      summary: "List all users"
+      description: "Returns a paginated list of users."
+      operationId: "listUsers"
+      tags: ["users"]
+      parameters:
+        - name: "page"
+          in: "query"
+          description: "Page number"
+          schema:
+            type: "integer"
+            format: "int32"
+        - name: "limit"
+          in: "query"
+          description: "Items per page"
+          schema:
+            type: "integer"
+            format: "int32"
+      responses:
+        "200":
+          description: "Successful response"
+          content:
+            application/json:
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  properties:
+                    id:
+                      type: "integer"
+                    name:
+                      type: "string"
+                    email:
+                      type: "string"
+                      format: "email"
+        "401":
+          description: "Unauthorized"
+    post:
+      summary: "Create a user"
+      description: "Creates a new user account."
+      operationId: "createUser"
+      tags: ["users"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: "object"
+              required: ["name", "email"]
+              properties:
+                name:
+                  type: "string"
+                  description: "Full name"
+                email:
+                  type: "string"
+                  format: "email"
+                  description: "Email address"
+                role:
+                  type: "string"
+                  enum: ["admin", "user", "viewer"]
+                  description: "User role"
+      responses:
+        "201":
+          description: "User created"
+          content:
+            application/json:
+              schema:
+                type: "object"
+                properties:
+                  id:
+                    type: "integer"
+                  name:
+                    type: "string"
+                  email:
+                    type: "string"
+        "400":
+          description: "Invalid input"
+        "409":
+          description: "Email already exists"
+  /users/{id}:
+    get:
+      summary: "Get a user"
+      description: "Returns a single user by ID."
+      operationId: "getUser"
+      tags: ["users"]
+      parameters:
+        - name: "id"
+          in: "path"
+          required: true
+          description: "User ID"
+          schema:
+            type: "integer"
+      responses:
+        "200":
+          description: "Successful response"
+          content:
+            application/json:
+              schema:
+                type: "object"
+                properties:
+                  id:
+                    type: "integer"
+                  name:
+                    type: "string"
+                  email:
+                    type: "string"
+                  role:
+                    type: "string"
+                  created_at:
+                    type: "string"
+                    format: "date-time"
+        "404":
+          description: "User not found"
+    put:
+      summary: "Update a user"
+      description: "Updates an existing user."
+      operationId: "updateUser"
+      tags: ["users"]
+      parameters:
+        - name: "id"
+          in: "path"
+          required: true
+          description: "User ID"
+          schema:
+            type: "integer"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: "object"
+              properties:
+                name:
+                  type: "string"
+                email:
+                  type: "string"
+                  format: "email"
+                role:
+                  type: "string"
+      responses:
+        "200":
+          description: "User updated"
+        "404":
+          description: "User not found"
+    delete:
+      summary: "Delete a user"
+      description: "Permanently deletes a user."
+      operationId: "deleteUser"
+      tags: ["users"]
+      parameters:
+        - name: "id"
+          in: "path"
+          required: true
+          description: "User ID"
+          schema:
+            type: "integer"
+      responses:
+        "204":
+          description: "User deleted"
+        "404":
+          description: "User not found"
+  /items:
+    get:
+      summary: "List all items"
+      description: "Returns all available items."
+      operationId: "listItems"
+      tags: ["items"]
+      parameters:
+        - name: "search"
+          in: "query"
+          description: "Search term"
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "Successful response"
+          content:
+            application/json:
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  properties:
+                    id:
+                      type: "integer"
+                    title:
+                      type: "string"
+                    description:
+                      type: "string"
+                    price:
+                      type: "number"
+                      format: "float"
+    post:
+      summary: "Create an item"
+      description: "Creates a new item."
+      operationId: "createItem"
+      tags: ["items"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: "object"
+              required: ["title", "price"]
+              properties:
+                title:
+                  type: "string"
+                  description: "Item title"
+                description:
+                  type: "string"
+                  description: "Item description"
+                price:
+                  type: "number"
+                  format: "float"
+                  description: "Item price"
+      responses:
+        "201":
+          description: "Item created"
+        "400":
+          description: "Invalid input"

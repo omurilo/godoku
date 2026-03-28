@@ -1,0 +1,46 @@
+<div class="docs-layout">
+    <aside class="sidebar">
+        <h3 class="sidebar-title">{{.Title}}</h3>
+        {{range $tag, $endpoints := .TagGroups}}
+        <div class="sidebar-group">
+            <h4 class="sidebar-group-title">{{$tag}}</h4>
+            <ul class="sidebar-nav">
+                {{range $endpoints}}
+                <li>
+                    <a href="{{$.BasePath}}/{{.Slug}}" class="sidebar-link {{if eq .Slug $.ActiveSlug}}active{{end}}">
+                        <span class="method-badge method-{{.Method | lower}}">{{.Method}}</span>
+                        <span class="endpoint-path">{{.Path}}</span>
+                    </a>
+                </li>
+                {{end}}
+            </ul>
+        </div>
+        {{end}}
+    </aside>
+    <article class="content">
+        <h1>{{.Title}}</h1>
+        <p>{{.Description}}</p>
+        <p class="api-version">Version: {{.Version}}</p>
+        {{if .Servers}}
+        <div class="servers">
+            <h3>Servers</h3>
+            {{range .Servers}}
+            <div class="server-item">
+                <code>{{.URL}}</code>
+                {{if .Description}}<span> — {{.Description}}</span>{{end}}
+            </div>
+            {{end}}
+        </div>
+        {{end}}
+        <div class="endpoints-overview">
+            <h2>Endpoints</h2>
+            {{range .Endpoints}}
+            <a href="{{$.BasePath}}/{{.Slug}}" class="endpoint-card">
+                <span class="method-badge method-{{.Method | lower}}">{{.Method}}</span>
+                <span class="endpoint-path">{{.Path}}</span>
+                {{if .Summary}}<span class="endpoint-summary">{{.Summary}}</span>{{end}}
+            </a>
+            {{end}}
+        </div>
+    </article>
+</div>
