@@ -12,11 +12,19 @@ import (
 )
 
 type Spec struct {
-	OpenAPI string               `json:"openapi" yaml:"openapi"`
-	Info    Info                 `json:"info" yaml:"info"`
-	Servers []Server             `json:"servers,omitempty" yaml:"servers,omitempty"`
-	Paths   map[string]*PathItem `json:"paths" yaml:"paths"`
-	Tags    []Tag                `json:"tags,omitempty" yaml:"tags,omitempty"`
+	OpenAPI    string               `json:"openapi" yaml:"openapi"`
+	Info       Info                 `json:"info" yaml:"info"`
+	Servers    []Server             `json:"servers,omitempty" yaml:"servers,omitempty"`
+	Paths      map[string]*PathItem `json:"paths" yaml:"paths"`
+	Tags       []Tag                `json:"tags,omitempty" yaml:"tags,omitempty"`
+	Components *Components          `json:"components,omitempty" yaml:"components,omitempty"`
+}
+
+type Components struct {
+	Schemas       map[string]*Schema      `json:"schemas,omitempty" yaml:"schemas,omitempty"`
+	Parameters    map[string]*Parameter   `json:"parameters,omitempty" yaml:"parameters,omitempty"`
+	RequestBodies map[string]*RequestBody `json:"requestBodies,omitempty" yaml:"requestBodies,omitempty"`
+	Responses     map[string]*Response    `json:"responses,omitempty" yaml:"responses,omitempty"`
 }
 
 type Info struct {
@@ -90,6 +98,10 @@ type Schema struct {
 	Required    []string           `json:"required,omitempty" yaml:"required,omitempty"`
 	Enum        []interface{}      `json:"enum,omitempty" yaml:"enum,omitempty"`
 	Example     interface{}        `json:"example,omitempty" yaml:"example,omitempty"`
+	AllOf       []*Schema          `json:"allOf,omitempty" yaml:"allOf,omitempty"`
+	OneOf       []*Schema          `json:"oneOf,omitempty" yaml:"oneOf,omitempty"`
+	AnyOf       []*Schema          `json:"anyOf,omitempty" yaml:"anyOf,omitempty"`
+	RefName     string             `json:"-" yaml:"-"`
 }
 
 type SecurityReq map[string][]string
@@ -144,6 +156,9 @@ func LoadSpec(filePath string) (*Spec, error) {
 }
 
 func ParseSpec(spec *Spec) *APIDoc {
+	// Resolve all $ref references before building the doc
+	resolveAllRefs(spec)
+
 	doc := &APIDoc{
 		Title:       spec.Info.Title,
 		Description: spec.Info.Description,
@@ -221,6 +236,9 @@ func (s *Schema) TypeString() string {
 	if s == nil {
 		return ""
 	}
+	if s.RefName != "" {
+		return s.RefName
+	}
 	if s.Ref != "" {
 		parts := strings.Split(s.Ref, "/")
 		return parts[len(parts)-1]
@@ -233,6 +251,179 @@ func (s *Schema) TypeString() string {
 		t += " (" + s.Format + ")"
 	}
 	return t
+}
+
+// resolveAllRefs resolves all $ref references in the spec by inlining component definitions.
+func resolveAllRefs(spec *Spec) {
+	if spec.Components == nil {
+		return
+	}
+
+	// First resolve refs within components themselves (nested refs)
+	for _, schema := range spec.Components.Schemas {
+		resolveSchemaRefs(schema, spec.Components, make(map[string]bool))
+	}
+
+	// Then resolve refs in all paths/operations
+	for _, pathItem := range spec.Paths {
+		ops := []*Operation{
+			pathItem.Get, pathItem.Post, pathItem.Put,
+			pathItem.Delete, pathItem.Patch, pathItem.Options, pathItem.Head,
+		}
+		for _, op := range ops {
+			if op == nil {
+				continue
+			}
+			resolveOperationRefs(op, spec.Components)
+		}
+	}
+}
+
+func resolveOperationRefs(op *Operation, components *Components) {
+	for i := range op.Parameters {
+		if op.Parameters[i].Schema != nil {
+			resolveSchemaRefs(op.Parameters[i].Schema, components, make(map[string]bool))
+		}
+	}
+
+	if op.RequestBody != nil {
+		for ct, media := range op.RequestBody.Content {
+			if media.Schema != nil {
+				resolveSchemaRefs(media.Schema, components, make(map[string]bool))
+				op.RequestBody.Content[ct] = media
+			}
+		}
+	}
+
+	for code, resp := range op.Responses {
+		for ct, media := range resp.Content {
+			if media.Schema != nil {
+				resolveSchemaRefs(media.Schema, components, make(map[string]bool))
+				resp.Content[ct] = media
+			}
+		}
+		op.Responses[code] = resp
+	}
+}
+
+func resolveSchemaRefs(schema *Schema, components *Components, seen map[string]bool) {
+	if schema == nil {
+		return
+	}
+
+	// Resolve $ref
+	if schema.Ref != "" {
+		refName := extractRefName(schema.Ref)
+		if refName == "" || seen[refName] {
+			return
+		}
+		seen[refName] = true
+
+		if components.Schemas != nil {
+			if resolved, ok := components.Schemas[refName]; ok {
+				// Recursively resolve the component schema first
+				resolveSchemaRefs(resolved, components, seen)
+				// Inline the resolved schema, keeping the ref name for display
+				schema.RefName = refName
+				schema.Ref = ""
+				if schema.Type == "" {
+					schema.Type = resolved.Type
+				}
+				if schema.Description == "" {
+					schema.Description = resolved.Description
+				}
+				if schema.Properties == nil {
+					schema.Properties = resolved.Properties
+				}
+				if schema.Items == nil {
+					schema.Items = resolved.Items
+				}
+				if schema.Required == nil {
+					schema.Required = resolved.Required
+				}
+				if schema.Enum == nil {
+					schema.Enum = resolved.Enum
+				}
+				if schema.Format == "" {
+					schema.Format = resolved.Format
+				}
+				if schema.AllOf == nil {
+					schema.AllOf = resolved.AllOf
+				}
+				if schema.OneOf == nil {
+					schema.OneOf = resolved.OneOf
+				}
+				if schema.AnyOf == nil {
+					schema.AnyOf = resolved.AnyOf
+				}
+			}
+		}
+		delete(seen, refName)
+	}
+
+	// Resolve allOf by merging properties
+	if len(schema.AllOf) > 0 {
+		for _, sub := range schema.AllOf {
+			resolveSchemaRefs(sub, components, seen)
+		}
+		merged := mergeAllOf(schema.AllOf)
+		if schema.Type == "" {
+			schema.Type = merged.Type
+		}
+		if schema.Properties == nil {
+			schema.Properties = merged.Properties
+		} else {
+			for k, v := range merged.Properties {
+				if _, exists := schema.Properties[k]; !exists {
+					schema.Properties[k] = v
+				}
+			}
+		}
+		if schema.Required == nil {
+			schema.Required = merged.Required
+		}
+		schema.AllOf = nil
+	}
+
+	// Resolve nested
+	for _, prop := range schema.Properties {
+		resolveSchemaRefs(prop, components, seen)
+	}
+	if schema.Items != nil {
+		resolveSchemaRefs(schema.Items, components, seen)
+	}
+	for _, sub := range schema.OneOf {
+		resolveSchemaRefs(sub, components, seen)
+	}
+	for _, sub := range schema.AnyOf {
+		resolveSchemaRefs(sub, components, seen)
+	}
+}
+
+func extractRefName(ref string) string {
+	// #/components/schemas/MyModel -> MyModel
+	parts := strings.Split(ref, "/")
+	if len(parts) > 0 {
+		return parts[len(parts)-1]
+	}
+	return ""
+}
+
+func mergeAllOf(schemas []*Schema) *Schema {
+	merged := &Schema{
+		Type:       "object",
+		Properties: make(map[string]*Schema),
+	}
+	for _, s := range schemas {
+		if s.Type != "" {
+			merged.Type = s.Type
+		}
+		for k, v := range s.Properties {
+			merged.Properties[k] = v
+		}
+		merged.Required = append(merged.Required, s.Required...)
+	}
+	return merged
 }
 
 // DiscoverAPIs scans the apis/ directory in rootDir for OpenAPI spec files (.yaml, .yml, .json).
