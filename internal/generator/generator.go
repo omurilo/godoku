@@ -3,11 +3,13 @@ package generator
 import (
 	"bytes"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/omurilo/godoku/internal/config"
@@ -29,6 +31,15 @@ type Generator struct {
 	OutDir      string
 	NavItems    []config.NavItem
 	sitemapURLs []string
+	searchIndex []searchEntry
+}
+
+type searchEntry struct {
+	Title       string `json:"title"`
+	Description string `json:"description,omitempty"`
+	Section     string `json:"section"`
+	URL         string `json:"url"`
+	Content     string `json:"content,omitempty"`
 }
 
 func New(cfg config.Config, rootDir string) *Generator {
@@ -86,6 +97,9 @@ func (g *Generator) Build() error {
 	}
 	if err := g.buildRobotsTxt(); err != nil {
 		return fmt.Errorf("building robots.txt: %w", err)
+	}
+	if err := g.buildSearchIndex(); err != nil {
+		return fmt.Errorf("building search index: %w", err)
 	}
 
 	return nil
@@ -302,6 +316,15 @@ func (g *Generator) buildSection(section string, contentDir string) error {
 			nextPage = &allPages[i+1]
 		}
 
+		// Add to search index
+		g.searchIndex = append(g.searchIndex, searchEntry{
+			Title:       page.Title,
+			Description: page.Description,
+			Section:     sectionTitle,
+			URL:         page.URLPath + "/",
+			Content:     stripHTML(page.Content),
+		})
+
 		pageData := sectionData{
 			Config:       g.Config,
 			SectionTitle: sectionTitle,
@@ -465,6 +488,15 @@ func (g *Generator) buildSingleAPI(tmpl *template.Template, doc *openapi.APIDoc,
 	}
 
 	for _, endpoint := range doc.Endpoints {
+		// Add to search index
+		g.searchIndex = append(g.searchIndex, searchEntry{
+			Title:       endpoint.Method + " " + endpoint.Path,
+			Description: endpoint.Summary,
+			Section:     "API",
+			URL:         basePath + "/" + endpoint.Slug + "/",
+			Content:     endpoint.Description,
+		})
+
 		epData := struct {
 			Config     config.Config
 			Endpoint   openapi.Endpoint
@@ -521,4 +553,26 @@ func (g *Generator) buildRobotsTxt() error {
 
 	content := "User-agent: *\nAllow: /\n\nSitemap: " + baseURL + "/sitemap.xml\n"
 	return g.writePage(filepath.Join(g.OutDir, "robots.txt"), content)
+}
+
+var htmlTagRe = regexp.MustCompile(`<[^>]*>`)
+
+func stripHTML(s string) string {
+	text := htmlTagRe.ReplaceAllString(s, " ")
+	// Collapse whitespace
+	parts := strings.Fields(text)
+	result := strings.Join(parts, " ")
+	// Truncate to keep index size reasonable
+	if len(result) > 500 {
+		result = result[:500]
+	}
+	return result
+}
+
+func (g *Generator) buildSearchIndex() error {
+	data, err := json.Marshal(g.searchIndex)
+	if err != nil {
+		return fmt.Errorf("marshaling search index: %w", err)
+	}
+	return g.writePage(filepath.Join(g.OutDir, "search-index.json"), string(data))
 }

@@ -38,6 +38,11 @@
     <nav class="navbar">
         <div class="navbar-inner">
             <a href="/" class="logo">{{.Config.Title}}</a>
+            <div class="search-wrapper">
+                <input type="text" id="search-input" class="search-input" placeholder="Search docs..." autocomplete="off">
+                <kbd class="search-shortcut">/</kbd>
+                <div id="search-results" class="search-results"></div>
+            </div>
             <div class="nav-links">
                 {{range .NavItems}}
                 <a href="{{.Path}}" class="nav-link">{{.Label}}</a>
@@ -45,6 +50,7 @@
             </div>
         </div>
     </nav>
+    <div id="search-overlay" class="search-overlay"></div>
     <main class="main">
         {{.Body}}
     </main>
@@ -53,6 +59,7 @@
             <p>Built with <a href="https://github.com/omurilo/godoku">Godoku</a></p>
         </div>
     </footer>
+    <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js"></script>
     <script src="/static/script.js"></script>
 </body>
 </html>

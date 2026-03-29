@@ -152,3 +152,144 @@ function sendPlaygroundRequest(btn) {
       btn.disabled = false;
     });
 }
+
+// Search with Fuse.js
+(function () {
+  var searchInput = document.getElementById("search-input");
+  var searchResults = document.getElementById("search-results");
+  var searchOverlay = document.getElementById("search-overlay");
+  var shortcutHint = document.querySelector(".search-shortcut");
+  var fuse = null;
+  var debounceTimer = null;
+
+  if (!searchInput) return;
+
+  // Load search index lazily on first focus
+  function loadIndex() {
+    if (fuse) return;
+    fetch("/search-index.json")
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        fuse = new Fuse(data, {
+          keys: [
+            { name: "title", weight: 0.4 },
+            { name: "description", weight: 0.3 },
+            { name: "content", weight: 0.2 },
+            { name: "section", weight: 0.1 }
+          ],
+          threshold: 0.3,
+          includeMatches: true,
+          minMatchCharLength: 2,
+          limit: 10
+        });
+      });
+  }
+
+  searchInput.addEventListener("focus", loadIndex);
+
+  searchInput.addEventListener("input", function () {
+    clearTimeout(debounceTimer);
+    var query = searchInput.value.trim();
+    if (query.length < 2 || !fuse) {
+      closeSearch();
+      return;
+    }
+    debounceTimer = setTimeout(function () {
+      var results = fuse.search(query, { limit: 8 });
+      renderResults(results);
+    }, 150);
+  });
+
+  function renderResults(results) {
+    if (results.length === 0) {
+      searchResults.innerHTML = '<div class="search-empty">No results found</div>';
+      openSearch();
+      return;
+    }
+
+    var html = "";
+    results.forEach(function (r, idx) {
+      var item = r.item;
+      var activeClass = idx === 0 ? " search-result-active" : "";
+      html += '<a href="' + item.url + '" class="search-result-item' + activeClass + '">';
+      html += '<span class="search-result-title">' + escapeHtml(item.title) + '</span>';
+      html += '<span class="search-result-section">' + escapeHtml(item.section) + '</span>';
+      if (item.description) {
+        html += '<span class="search-result-desc">' + escapeHtml(item.description) + '</span>';
+      }
+      html += "</a>";
+    });
+
+    searchResults.innerHTML = html;
+    openSearch();
+  }
+
+  function openSearch() {
+    searchResults.style.display = "block";
+    searchOverlay.style.display = "block";
+    if (shortcutHint) shortcutHint.style.display = "none";
+  }
+
+  function closeSearch() {
+    searchResults.style.display = "none";
+    searchOverlay.style.display = "none";
+    if (shortcutHint && document.activeElement !== searchInput) {
+      shortcutHint.style.display = "";
+    }
+  }
+
+  searchOverlay.addEventListener("click", function () {
+    searchInput.value = "";
+    closeSearch();
+  });
+
+  searchInput.addEventListener("blur", function () {
+    // Delay so clicks on results register
+    setTimeout(closeSearch, 200);
+  });
+
+  // Keyboard navigation
+  searchInput.addEventListener("keydown", function (e) {
+    var items = searchResults.querySelectorAll(".search-result-item");
+    var active = searchResults.querySelector(".search-result-active");
+    var idx = Array.prototype.indexOf.call(items, active);
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (idx < items.length - 1) {
+        if (active) active.classList.remove("search-result-active");
+        items[idx + 1].classList.add("search-result-active");
+      }
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (idx > 0) {
+        if (active) active.classList.remove("search-result-active");
+        items[idx - 1].classList.add("search-result-active");
+      }
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (active) {
+        window.location.href = active.getAttribute("href");
+      }
+    } else if (e.key === "Escape") {
+      searchInput.value = "";
+      searchInput.blur();
+      closeSearch();
+    }
+  });
+
+  // Global "/" shortcut
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "/" && document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "TEXTAREA") {
+      e.preventDefault();
+      searchInput.focus();
+      if (shortcutHint) shortcutHint.style.display = "none";
+    }
+  });
+
+  function escapeHtml(str) {
+    var div = document.createElement("div");
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+  }
+})();
