@@ -26,12 +26,14 @@ func SetEmbedFS(templates, static embed.FS) {
 }
 
 type Generator struct {
-	Config      config.Config
-	RootDir     string
-	OutDir      string
-	NavItems    []config.NavItem
-	sitemapURLs []string
-	searchIndex []searchEntry
+	Config       config.Config
+	RootDir      string
+	OutDir       string
+	NavItems     []config.NavItem
+	sitemapURLs  []string
+	searchIndex  []searchEntry
+	hasCustomCSS bool
+	hasCustomJS  bool
 }
 
 type searchEntry struct {
@@ -60,6 +62,10 @@ func (g *Generator) Build() error {
 
 	if err := g.copyStaticAssets(); err != nil {
 		return fmt.Errorf("copying static assets: %w", err)
+	}
+
+	if err := g.copyUserStatic(); err != nil {
+		return fmt.Errorf("copying user static files: %w", err)
 	}
 
 	// Build filtered navigation (hide empty sections)
@@ -132,6 +138,47 @@ func (g *Generator) copyStaticAssets() error {
 	})
 }
 
+func (g *Generator) copyUserStatic() error {
+	userStaticDir := filepath.Join(g.RootDir, "static")
+	if _, err := os.Stat(userStaticDir); os.IsNotExist(err) {
+		return nil
+	}
+
+	outStaticDir := filepath.Join(g.OutDir, "static")
+
+	err := filepath.WalkDir(userStaticDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		rel, _ := filepath.Rel(userStaticDir, path)
+		outPath := filepath.Join(outStaticDir, rel)
+
+		if d.IsDir() {
+			return os.MkdirAll(outPath, 0755)
+		}
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(outPath, data, 0644)
+	})
+	if err != nil {
+		return err
+	}
+
+	// Detect custom files
+	if _, err := os.Stat(filepath.Join(userStaticDir, "custom.css")); err == nil {
+		g.hasCustomCSS = true
+	}
+	if _, err := os.Stat(filepath.Join(userStaticDir, "custom.js")); err == nil {
+		g.hasCustomJS = true
+	}
+
+	return nil
+}
+
 func (g *Generator) loadTemplates() (*template.Template, error) {
 	funcMap := template.FuncMap{
 		"lower":    strings.ToLower,
@@ -191,6 +238,8 @@ type layoutData struct {
 	PageDescription string
 	CanonicalURL    string
 	OGType          string
+	HasCustomCSS    bool
+	HasCustomJS     bool
 	Body            template.HTML
 }
 
@@ -220,6 +269,8 @@ func (g *Generator) renderPage(tmpl *template.Template, templateName string, dat
 		PageDescription: desc,
 		CanonicalURL:    canonical,
 		OGType:          ogType,
+		HasCustomCSS:    g.hasCustomCSS,
+		HasCustomJS:     g.hasCustomJS,
 		Body:            template.HTML(bodyBuf.String()),
 	}
 	if err := tmpl.ExecuteTemplate(&pageBuf, "layout", ld); err != nil {

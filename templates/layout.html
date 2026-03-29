@@ -33,6 +33,7 @@
     </script>
 
     <link rel="stylesheet" href="/static/style.css">
+    {{if .HasCustomCSS}}<link rel="stylesheet" href="/static/custom.css">{{end}}
 </head>
 <body>
     <nav class="navbar">
@@ -61,5 +62,6 @@
     </footer>
     <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js"></script>
     <script src="/static/script.js"></script>
+    {{if .HasCustomJS}}<script src="/static/custom.js"></script>{{end}}
 </body>
 </html>
