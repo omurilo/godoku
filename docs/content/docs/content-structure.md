@@ -112,3 +112,60 @@ Godoku uses [Goldmark](https://github.com/yuin/goldmark) with GFM extensions:
 - **Syntax highlighting** — Fenced code blocks with Dracula theme
 - **Auto heading IDs** — Headings get anchor IDs for linking
 - **Raw HTML** — Inline HTML is supported
+
+### Code Block Enhancements
+
+Godoku supports advanced code block features inspired by modern documentation frameworks.
+
+#### Title
+
+Add a title bar to code blocks with `title="filename"`:
+
+```yaml title="godoku.yaml"
+site_name: My Docs
+base_url: https://example.com
+theme:
+  accent_color: "#58a6ff"
+```
+
+#### Line Highlighting
+
+Highlight specific lines using `{1,3-5}`:
+
+```go {1,5-8}
+package main
+
+import "fmt"
+
+func main() {
+    fmt.Println("Hello, Godoku!")
+}
+```
+
+#### Line Numbers
+
+Show line numbers with `showLineNumbers`:
+
+```js showLineNumbers
+function greet(name) {
+  return `Hello, ${name}!`;
+}
+
+const message = greet("World");
+console.log(message);
+```
+
+#### Combined
+
+All options can be combined:
+
+```go {1,5-8} title="main.go" showLineNumbers
+package main
+
+import "fmt"
+
+func main() {
+    fmt.Println("Hello from Godoku!")
+    fmt.Println("Advanced code blocks!")
+}
+```

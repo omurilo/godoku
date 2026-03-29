@@ -10,6 +10,9 @@ document.addEventListener("DOMContentLoaded", function () {
       document.documentElement.removeAttribute("data-theme");
     }
     localStorage.setItem("godoku-theme", next || "dark");
+
+    // Update Shiki theme for already-highlighted blocks
+    updateShikiTheme(next || "dark");
   }
 
   var themeToggle = document.getElementById("theme-toggle");
@@ -116,22 +119,200 @@ document.addEventListener("DOMContentLoaded", function () {
     updateTOC();
   }
 
-  // Code block enhancements: copy button + title wrapping
+  // Shiki code highlighting, then copy buttons
+  initShikiHighlighting().then(function () {
+    addCopyButtons();
+  }).catch(function (err) {
+    console.warn("Shiki failed, using plain code blocks:", err);
+    addCopyButtons();
+  });
+});
+
+// Parse highlight range string "1,3-5,8" into a Set of line numbers
+function parseHighlightRanges(str) {
+  var result = new Set();
+  if (!str) return result;
+  str.split(",").forEach(function (part) {
+    part = part.trim();
+    var dashIdx = part.indexOf("-");
+    if (dashIdx >= 0) {
+      var start = parseInt(part.substring(0, dashIdx), 10);
+      var end = parseInt(part.substring(dashIdx + 1), 10);
+      for (var i = start; i <= end; i++) result.add(i);
+    } else {
+      var n = parseInt(part, 10);
+      if (n > 0) result.add(n);
+    }
+  });
+  return result;
+}
+
+// Shiki highlighter instance (shared)
+var shikiHighlighter = null;
+
+function getShikiTheme() {
+  var theme = document.documentElement.getAttribute("data-theme");
+  return theme === "light" ? "github-light" : "dracula";
+}
+
+async function initShikiHighlighting() {
+  var codeBlocks = document.querySelectorAll("pre > code");
+  if (codeBlocks.length === 0) return;
+
+  // Collect languages from code blocks
+  var langs = new Set();
+  codeBlocks.forEach(function (code) {
+    var cls = Array.from(code.classList).find(function (c) { return c.startsWith("language-"); });
+    if (cls) langs.add(cls.replace("language-", ""));
+    var pre = code.parentElement;
+    if (pre && pre.dataset.lang) langs.add(pre.dataset.lang);
+  });
+
+  var langList = Array.from(langs).filter(function (l) { return l && l !== ""; });
+
+  // Languages (and aliases) available in shiki@1/bundle/web
+  var webBundleLangs = new Set([
+    "angular-html", "angular-ts", "astro", "blade", "c", "coffee", "coffeescript",
+    "cpp", "c++", "css", "glsl", "graphql", "gql", "haml", "handlebars", "hbs",
+    "html", "html-derivative", "http", "imba", "java", "javascript", "js",
+    "jinja", "jison", "json", "json5", "jsonc", "jsonl", "jsx", "julia", "jl",
+    "less", "markdown", "md", "marko", "mdc", "mdx", "php", "postcss", "pug",
+    "jade", "python", "py", "r", "regexp", "regex", "sass", "scss",
+    "shellscript", "bash", "sh", "shell", "zsh", "sql", "stylus", "styl",
+    "svelte", "ts-tags", "lit", "tsx", "typescript", "ts", "vue", "vue-html",
+    "wasm", "wgsl", "xml", "yaml", "yml"
+  ]);
+  var useWebBundle = langList.length === 0 || langList.every(function (l) { return webBundleLangs.has(l); });
+  var shiki = await import(useWebBundle ? "https://esm.sh/shiki@1/bundle/web" : "https://esm.sh/shiki@1/bundle/full");
+  
+  shikiHighlighter = await shiki.createHighlighter({
+    themes: ["dracula", "github-light"],
+    langs: langList.length > 0 ? langList : ["text"]
+  });
+
+  processCodeBlocks(codeBlocks);
+}
+
+function processCodeBlocks(codeBlocks) {
+  if (!shikiHighlighter) return;
+
+  var theme = getShikiTheme();
+  var loadedLangs = shikiHighlighter.getLoadedLanguages();
+
+  codeBlocks.forEach(function (codeEl) {
+    var pre = codeEl.parentElement;
+    if (!pre || pre.closest(".playground-result")) return;
+
+    // Determine language
+    var cls = Array.from(codeEl.classList).find(function (c) { return c.startsWith("language-"); });
+    var lang = (cls ? cls.replace("language-", "") : "") || (pre.dataset.lang || "");
+    if (!lang || loadedLangs.indexOf(lang) === -1) lang = "text";
+
+    // Use stored original code on re-renders (theme toggle) to avoid
+    // picking up line-number text that was injected into the DOM.
+    var code;
+    if (pre.dataset.originalCode) {
+      code = pre.dataset.originalCode;
+    } else {
+      code = codeEl.textContent;
+      if (code.endsWith("\n")) code = code.slice(0, -1);
+    }
+
+    var highlightStr = pre.dataset.highlight || "";
+    var highlightLines = parseHighlightRanges(highlightStr);
+    var showLineNumbers = pre.hasAttribute("data-line-numbers");
+
+    // Save data attrs before replacing
+    var savedAttrs = {};
+    if (pre.dataset.highlight) savedAttrs.highlight = pre.dataset.highlight;
+    if (pre.dataset.lineNumbers) savedAttrs.lineNumbers = pre.dataset.lineNumbers;
+    if (pre.dataset.lang) savedAttrs.lang = pre.dataset.lang;
+
+    try {
+      var html = shikiHighlighter.codeToHtml(code, {
+        lang: lang,
+        theme: theme
+      });
+
+      var temp = document.createElement("div");
+      temp.innerHTML = html;
+      var newPre = temp.querySelector("pre");
+      if (!newPre) return;
+
+      // Manually add line enhancements (line numbers + highlights)
+      if (highlightLines.size > 0 || showLineNumbers) {
+        var lineSpans = newPre.querySelectorAll("code > .line");
+        lineSpans.forEach(function (span, idx) {
+          var lineNum = idx + 1;
+          if (highlightLines.has(lineNum)) {
+            span.classList.add("highlighted");
+          }
+          if (showLineNumbers) {
+            var numSpan = document.createElement("span");
+            numSpan.className = "line-number";
+            numSpan.textContent = String(lineNum);
+            span.insertBefore(numSpan, span.firstChild);
+          }
+        });
+      }
+
+      // Restore data attributes
+      if (savedAttrs.highlight) newPre.dataset.highlight = savedAttrs.highlight;
+      if (savedAttrs.lineNumbers) newPre.dataset.lineNumbers = savedAttrs.lineNumbers;
+      if (savedAttrs.lang) newPre.dataset.lang = savedAttrs.lang;
+      newPre.dataset.shiki = "true";
+      newPre.dataset.originalCode = code;
+
+      // If inside a titled wrapper, just replace the pre
+      var titled = pre.closest(".code-block-titled");
+      if (titled) {
+        pre.replaceWith(newPre);
+      } else {
+        pre.replaceWith(newPre);
+      }
+    } catch (e) {
+      console.warn("Shiki error for lang '" + lang + "':", e);
+    }
+  });
+}
+
+function updateShikiTheme(themeMode) {
+  if (!shikiHighlighter) return;
+  var codeBlocks = document.querySelectorAll('pre[data-shiki="true"] > code');
+  if (codeBlocks.length === 0) {
+    codeBlocks = document.querySelectorAll("pre.shiki > code");
+  }
+  if (codeBlocks.length === 0) return;
+  processCodeBlocks(codeBlocks);
+}
+
+function addCopyButtons() {
   document.querySelectorAll("pre").forEach(function (pre) {
-    // Skip playground response blocks
     if (pre.closest(".playground-result")) return;
+    if (pre.closest(".code-block-wrapper")) return;
 
     var wrapper = document.createElement("div");
     wrapper.className = "code-block-wrapper";
     pre.parentNode.insertBefore(wrapper, pre);
     wrapper.appendChild(pre);
 
-    // Copy button
+    var toolbar = document.createElement("div");
+    toolbar.className = "code-block-toolbar";
+
+    var lang = pre.dataset.lang || "";
+    if (lang) {
+      var langLabel = document.createElement("span");
+      langLabel.className = "code-lang-label";
+      langLabel.textContent = lang;
+      toolbar.appendChild(langLabel);
+    }
+
     var copyBtn = document.createElement("button");
     copyBtn.className = "code-copy-btn";
     copyBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
     copyBtn.title = "Copy code";
-    wrapper.appendChild(copyBtn);
+    toolbar.appendChild(copyBtn);
+    wrapper.appendChild(toolbar);
 
     copyBtn.addEventListener("click", function () {
       var code = pre.querySelector("code");
@@ -144,7 +325,7 @@ document.addEventListener("DOMContentLoaded", function () {
       });
     });
   });
-});
+}
 
 // API Playground
 function sendPlaygroundRequest(btn) {

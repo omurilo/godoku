@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/yuin/goldmark"
-	highlighting "github.com/yuin/goldmark-highlighting/v2"
 	meta "github.com/yuin/goldmark-meta"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
@@ -90,9 +89,6 @@ func init() {
 		goldmark.WithExtensions(
 			extension.GFM,
 			meta.Meta,
-			highlighting.NewHighlighting(
-				highlighting.WithStyle("dracula"),
-			),
 			&mermaid.Extender{},
 		),
 		goldmark.WithParserOptions(
@@ -116,6 +112,9 @@ func ParseMarkdown(source []byte, filePath string) (Page, error) {
 	// Pre-process admonitions (:::type blocks)
 	source = processAdmonitions(source)
 
+	// Pre-process code block metadata (extract title, line highlights, line numbers)
+	source, codeBlockMeta := extractCodeBlockMeta(source)
+
 	var buf bytes.Buffer
 	ctx := parser.NewContext()
 
@@ -123,9 +122,16 @@ func ParseMarkdown(source []byte, filePath string) (Page, error) {
 		return Page{}, err
 	}
 
+	rendered := buf.String()
+
+	// Post-process: apply code block enhancements
+	if len(codeBlockMeta) > 0 {
+		rendered = applyCodeBlockMeta(rendered, codeBlockMeta)
+	}
+
 	metadata := meta.Get(ctx)
 	page := Page{
-		Content:  buf.String(),
+		Content:  rendered,
 		FilePath: filePath,
 	}
 
@@ -414,6 +420,136 @@ func extractHeadings(html string) []TOCEntry {
 		entries = append(entries, TOCEntry{Level: level, ID: m[2], Title: strings.TrimSpace(title)})
 	}
 	return entries
+}
+
+// Code block metadata
+type codeBlockInfo struct {
+	index        int
+	lang         string
+	title        string
+	highlightStr string
+	lineNumbers  bool
+}
+
+var fenceOpenRe = regexp.MustCompile("^```(\\w*)(.*?)\\s*$")
+var titleRe = regexp.MustCompile(`title="([^"]*)"`)
+var highlightRe = regexp.MustCompile(`\{([0-9,\-\s]+)\}`)
+
+// extractCodeBlockMeta scans markdown source for fenced code blocks with metadata
+// like ```js {1,3-5} title="file.js" showLineNumbers and strips the metadata
+// so goldmark can render the code normally.
+func extractCodeBlockMeta(source []byte) ([]byte, []codeBlockInfo) {
+	lines := strings.Split(string(source), "\n")
+	var result []string
+	var metas []codeBlockInfo
+	blockIndex := 0
+	inBlock := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		if !inBlock {
+			if matches := fenceOpenRe.FindStringSubmatch(trimmed); matches != nil {
+				inBlock = true
+				lang := matches[1]
+				rest := matches[2]
+
+				var info codeBlockInfo
+				info.index = blockIndex
+				info.lang = lang
+				hasMeta := false
+
+				// Extract title
+				if titleMatch := titleRe.FindStringSubmatch(rest); titleMatch != nil {
+					info.title = titleMatch[1]
+					hasMeta = true
+				}
+
+				// Extract line highlights {1,3-5}
+				if hlMatch := highlightRe.FindStringSubmatch(rest); hlMatch != nil {
+					info.highlightStr = hlMatch[1]
+					hasMeta = true
+				}
+
+				// Extract showLineNumbers
+				if strings.Contains(rest, "showLineNumbers") {
+					info.lineNumbers = true
+					hasMeta = true
+				}
+
+				// Always add if lang is present, even if no extra meta
+				if hasMeta || lang != "" {
+					metas = append(metas, info)
+				}
+
+				// Write clean fence line (only language)
+				result = append(result, "```"+lang)
+				continue
+			}
+		} else if trimmed == "```" {
+			inBlock = false
+			blockIndex++
+			result = append(result, line)
+			continue
+		}
+
+		result = append(result, line)
+	}
+
+	return []byte(strings.Join(result, "\n")), metas
+}
+
+var preBlockRe = regexp.MustCompile(`(?s)<pre[^>]*>.*?</pre>`)
+
+// applyCodeBlockMeta injects data attributes on <pre> tags for client-side Shiki processing,
+// and wraps blocks with a title div when present.
+func applyCodeBlockMeta(html string, metas []codeBlockInfo) string {
+	metaMap := make(map[int]codeBlockInfo)
+	for _, m := range metas {
+		metaMap[m.index] = m
+	}
+
+	blockIdx := 0
+	html = preBlockRe.ReplaceAllStringFunc(html, func(block string) string {
+		info, hasMeta := metaMap[blockIdx]
+		blockIdx++
+
+		if !hasMeta {
+			return block
+		}
+
+		// Build data attributes for Shiki
+		var attrs []string
+		if info.lang != "" {
+			attrs = append(attrs, `data-lang="`+info.lang+`"`)
+		}
+		if info.highlightStr != "" {
+			attrs = append(attrs, `data-highlight="`+info.highlightStr+`"`)
+		}
+		if info.lineNumbers {
+			attrs = append(attrs, `data-line-numbers="true"`)
+		}
+		if len(attrs) > 0 {
+			block = strings.Replace(block, "<pre", "<pre "+strings.Join(attrs, " "), 1)
+		}
+
+		// Wrap with title if present
+		if info.title != "" {
+			block = `<div class="code-block-titled"><div class="code-block-title">` + escapeHTML(info.title) + `</div>` + block + `</div>`
+		}
+
+		return block
+	})
+
+	return html
+}
+
+func escapeHTML(s string) string {
+	s = strings.ReplaceAll(s, "&", "&amp;")
+	s = strings.ReplaceAll(s, "<", "&lt;")
+	s = strings.ReplaceAll(s, ">", "&gt;")
+	s = strings.ReplaceAll(s, "\"", "&quot;")
+	return s
 }
 
 var admonitionTitles = map[string]string{

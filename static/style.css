@@ -71,7 +71,7 @@ code {
 }
 
 pre {
-    background: var(--code-bg) !important;
+    background: var(--code-bg);
     color: #e6edf3;
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -86,6 +86,7 @@ pre code {
     padding: 0;
     font-size: 0.875rem;
     line-height: 1.7;
+    counter-reset: line;
 }
 
 /* Navbar */
@@ -1303,58 +1304,107 @@ select.playground-input {
     position: relative;
 }
 
-.code-block-title {
-    display: inline-block;
+.code-block-titled {
+    margin: 1rem 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    position: relative;
+}
+
+.code-block-titled > .code-block-wrapper {
+    margin: 0;
+}
+
+.code-block-titled .code-block-title,
+.code-block-wrapper > .code-block-title {
+    display: block;
     background: var(--bg-tertiary);
     color: var(--text-secondary);
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     font-family: "JetBrains Mono", "Fira Code", monospace;
-    padding: 0.35rem 0.75rem;
-    border: 1px solid var(--border);
-    border-bottom: none;
-    border-radius: var(--radius) var(--radius) 0 0;
-    margin-bottom: -1px;
-    position: relative;
-    z-index: 1;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--border);
+    margin: 0;
+}
+
+.code-block-titled pre {
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
 }
 
 .code-block-wrapper pre {
     margin-top: 0;
-    border-top-left-radius: 0;
 }
 
-/* Line highlighting in code blocks */
-.highlight-line {
-    background: rgba(88, 166, 255, 0.1);
+/* Shiki code block lines */
+pre.shiki {
+    padding: 1rem 0;
+}
+
+pre.shiki code {
     display: block;
-    margin: 0 -1rem;
+    min-width: fit-content;
+    font-size: 0;
+}
+
+pre.shiki .line {
+    display: block;
     padding: 0 1rem;
-    border-left: 3px solid var(--accent);
+    border-left: 3px solid transparent;
+    font-size: 0.875rem;
+    line-height: 1.7;
+}
+
+pre.shiki .line.highlighted {
+    background: rgba(88, 166, 255, 0.1);
+    border-left-color: var(--accent);
+}
+
+[data-theme="light"] pre.shiki .line.highlighted {
+    background: rgba(9, 105, 218, 0.08);
 }
 
 /* Line numbers */
-.line-numbers {
-    counter-reset: line;
-}
-
-.line-numbers .line::before {
-    counter-increment: line;
-    content: counter(line);
+.line-number {
     display: inline-block;
-    width: 2.5em;
+    min-width: 2em;
     text-align: right;
     padding-right: 1em;
     color: var(--text-muted);
-    font-size: 0.8em;
+    font-size: 0.85em;
     user-select: none;
     opacity: 0.5;
 }
 
-/* Copy button for code blocks */
-.code-copy-btn {
+/* Code block toolbar (lang label + copy button) */
+.code-block-toolbar {
     position: absolute;
     top: 0.5rem;
     right: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 2;
+}
+
+.code-block-wrapper:hover .code-block-toolbar {
+    opacity: 1;
+}
+
+.code-lang-label {
+    font-size: 0.7rem;
+    font-family: "JetBrains Mono", "Fira Code", monospace;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    user-select: none;
+    padding: 0.2rem 0.4rem;
+    line-height: 1;
+}
+
+.code-copy-btn {
     background: var(--bg-tertiary);
     border: 1px solid var(--border);
     border-radius: 4px;
@@ -1362,15 +1412,8 @@ select.playground-input {
     cursor: pointer;
     padding: 0.25rem 0.4rem;
     font-size: 0.75rem;
-    opacity: 0;
-    transition: opacity 0.15s, color 0.15s;
-    z-index: 2;
-}
-
-.code-block-wrapper:hover .code-copy-btn,
-pre:hover + .code-copy-btn,
-.code-copy-btn:hover {
-    opacity: 1;
+    transition: color 0.15s;
+    line-height: 1;
 }
 
 .code-copy-btn:hover {
