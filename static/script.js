@@ -1,5 +1,22 @@
 // Godoku - client-side enhancements
 document.addEventListener("DOMContentLoaded", function () {
+  // Theme toggle (desktop + mobile)
+  function handleThemeToggle() {
+    var current = document.documentElement.getAttribute("data-theme");
+    var next = current === "light" ? "" : "light";
+    if (next) {
+      document.documentElement.setAttribute("data-theme", next);
+    } else {
+      document.documentElement.removeAttribute("data-theme");
+    }
+    localStorage.setItem("godoku-theme", next || "dark");
+  }
+
+  var themeToggle = document.getElementById("theme-toggle");
+  if (themeToggle) themeToggle.addEventListener("click", handleThemeToggle);
+  var mobileThemeToggle = document.getElementById("mobile-theme-toggle");
+  if (mobileThemeToggle) mobileThemeToggle.addEventListener("click", handleThemeToggle);
+
   // Highlight active nav link
   const currentPath = window.location.pathname;
   document.querySelectorAll(".nav-link").forEach(function (link) {
@@ -22,42 +39,13 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   });
 
-  // Collapsible sidebar groups with localStorage persistence
-  var STORAGE_KEY = "godoku-collapsed-groups";
-
-  function getCollapsedGroups() {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
-    } catch (e) {
-      return {};
-    }
-  }
-
-  function saveCollapsedGroups(state) {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch (e) {}
-  }
-
-  var collapsedState = getCollapsedGroups();
-
+  // Collapsible sidebar groups
   document.querySelectorAll(".sidebar-group").forEach(function (group) {
     var toggle = group.querySelector(".sidebar-group-toggle");
     if (!toggle) return;
-    var groupName = toggle.textContent.trim();
     var hasActive = group.querySelector(".sidebar-link.active");
 
-    // Use saved state if exists, otherwise collapse groups without active page
-    var shouldCollapse;
-    if (groupName in collapsedState) {
-      shouldCollapse = collapsedState[groupName];
-      // Always expand the group with active page regardless of saved state
-      if (hasActive) shouldCollapse = false;
-    } else {
-      shouldCollapse = !hasActive;
-    }
-
-    if (shouldCollapse) {
+    if (!hasActive) {
       group.classList.add("collapsed");
       toggle.setAttribute("aria-expanded", "false");
     }
@@ -68,13 +56,21 @@ document.addEventListener("DOMContentLoaded", function () {
       var group = btn.closest(".sidebar-group");
       var isCollapsed = group.classList.toggle("collapsed");
       btn.setAttribute("aria-expanded", isCollapsed ? "false" : "true");
-
-      // Persist state
-      var state = getCollapsedGroups();
-      state[btn.textContent.trim()] = isCollapsed;
-      saveCollapsedGroups(state);
     });
   });
+
+  // Mobile menu toggle
+  var sidebarToggle = document.getElementById("sidebar-toggle");
+  var sidebar = document.querySelector(".sidebar");
+  var mobileNav = document.getElementById("mobile-nav");
+
+  if (sidebarToggle) {
+    sidebarToggle.addEventListener("click", function () {
+      var isOpen = sidebarToggle.classList.toggle("active");
+      if (mobileNav) mobileNav.classList.toggle("open", isOpen);
+      if (sidebar) sidebar.classList.toggle("sidebar-open", isOpen);
+    });
+  }
 });
 
 // API Playground
@@ -209,16 +205,9 @@ function sendPlaygroundRequest(btn) {
 
 // Search with Fuse.js
 (function () {
-  var searchInput = document.getElementById("search-input");
-  var searchResults = document.getElementById("search-results");
-  var searchOverlay = document.getElementById("search-overlay");
-  var shortcutHint = document.querySelector(".search-shortcut");
   var fuse = null;
   var debounceTimer = null;
 
-  if (!searchInput) return;
-
-  // Load search index lazily on first focus
   function loadIndex() {
     if (fuse) return;
     fetch("/search-index.json")
@@ -239,111 +228,130 @@ function sendPlaygroundRequest(btn) {
       });
   }
 
-  searchInput.addEventListener("focus", loadIndex);
-
-  searchInput.addEventListener("input", function () {
-    clearTimeout(debounceTimer);
-    var query = searchInput.value.trim();
-    if (query.length < 2 || !fuse) {
-      closeSearch();
-      return;
-    }
-    debounceTimer = setTimeout(function () {
-      var results = fuse.search(query, { limit: 8 });
-      renderResults(results);
-    }, 150);
-  });
-
-  function renderResults(results) {
-    if (results.length === 0) {
-      searchResults.innerHTML = '<div class="search-empty">No results found</div>';
-      openSearch();
-      return;
-    }
-
-    var html = "";
-    results.forEach(function (r, idx) {
-      var item = r.item;
-      var activeClass = idx === 0 ? " search-result-active" : "";
-      html += '<a href="' + item.url + '" class="search-result-item' + activeClass + '">';
-      html += '<span class="search-result-title">' + escapeHtml(item.title) + '</span>';
-      html += '<span class="search-result-section">' + escapeHtml(item.section) + '</span>';
-      if (item.description) {
-        html += '<span class="search-result-desc">' + escapeHtml(item.description) + '</span>';
-      }
-      html += "</a>";
-    });
-
-    searchResults.innerHTML = html;
-    openSearch();
-  }
-
-  function openSearch() {
-    searchResults.style.display = "block";
-    searchOverlay.style.display = "block";
-    if (shortcutHint) shortcutHint.style.display = "none";
-  }
-
-  function closeSearch() {
-    searchResults.style.display = "none";
-    searchOverlay.style.display = "none";
-    if (shortcutHint && document.activeElement !== searchInput) {
-      shortcutHint.style.display = "";
-    }
-  }
-
-  searchOverlay.addEventListener("click", function () {
-    searchInput.value = "";
-    closeSearch();
-  });
-
-  searchInput.addEventListener("blur", function () {
-    // Delay so clicks on results register
-    setTimeout(closeSearch, 200);
-  });
-
-  // Keyboard navigation
-  searchInput.addEventListener("keydown", function (e) {
-    var items = searchResults.querySelectorAll(".search-result-item");
-    var active = searchResults.querySelector(".search-result-active");
-    var idx = Array.prototype.indexOf.call(items, active);
-
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      if (idx < items.length - 1) {
-        if (active) active.classList.remove("search-result-active");
-        items[idx + 1].classList.add("search-result-active");
-      }
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      if (idx > 0) {
-        if (active) active.classList.remove("search-result-active");
-        items[idx - 1].classList.add("search-result-active");
-      }
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      if (active) {
-        window.location.href = active.getAttribute("href");
-      }
-    } else if (e.key === "Escape") {
-      searchInput.value = "";
-      searchInput.blur();
-      closeSearch();
-    }
-  });
-
-  // Global "/" shortcut
-  document.addEventListener("keydown", function (e) {
-    if (e.key === "/" && document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "TEXTAREA") {
-      e.preventDefault();
-      searchInput.focus();
-      if (shortcutHint) shortcutHint.style.display = "none";
-    }
-  });
-
   function escapeHtml(str) {
     var div = document.createElement("div");
     div.appendChild(document.createTextNode(str));
     return div.innerHTML;
+  }
+
+  function setupSearch(inputId, resultsId, overlayEl, shortcutEl) {
+    var searchInput = document.getElementById(inputId);
+    var searchResults = document.getElementById(resultsId);
+    if (!searchInput || !searchResults) return;
+
+    searchInput.addEventListener("focus", loadIndex);
+
+    searchInput.addEventListener("input", function () {
+      clearTimeout(debounceTimer);
+      var query = searchInput.value.trim();
+      if (query.length < 2 || !fuse) {
+        closeSearch();
+        return;
+      }
+      debounceTimer = setTimeout(function () {
+        var results = fuse.search(query, { limit: 8 });
+        renderResults(results);
+      }, 150);
+    });
+
+    function renderResults(results) {
+      if (results.length === 0) {
+        searchResults.innerHTML = '<div class="search-empty">No results found</div>';
+        openSearch();
+        return;
+      }
+      var html = "";
+      results.forEach(function (r, idx) {
+        var item = r.item;
+        var activeClass = idx === 0 ? " search-result-active" : "";
+        html += '<a href="' + item.url + '" class="search-result-item' + activeClass + '">';
+        html += '<span class="search-result-title">' + escapeHtml(item.title) + '</span>';
+        html += '<span class="search-result-section">' + escapeHtml(item.section) + '</span>';
+        if (item.description) {
+          html += '<span class="search-result-desc">' + escapeHtml(item.description) + '</span>';
+        }
+        html += "</a>";
+      });
+      searchResults.innerHTML = html;
+      openSearch();
+    }
+
+    function openSearch() {
+      searchResults.style.display = "block";
+      if (overlayEl) overlayEl.style.display = "block";
+      if (shortcutEl) shortcutEl.style.display = "none";
+    }
+
+    function closeSearch() {
+      searchResults.style.display = "none";
+      if (overlayEl) overlayEl.style.display = "none";
+      if (shortcutEl && document.activeElement !== searchInput) {
+        shortcutEl.style.display = "";
+      }
+    }
+
+    if (overlayEl) {
+      overlayEl.addEventListener("click", function () {
+        searchInput.value = "";
+        closeSearch();
+      });
+    }
+
+    searchInput.addEventListener("blur", function () {
+      setTimeout(closeSearch, 200);
+    });
+
+    searchInput.addEventListener("keydown", function (e) {
+      var items = searchResults.querySelectorAll(".search-result-item");
+      var active = searchResults.querySelector(".search-result-active");
+      var idx = Array.prototype.indexOf.call(items, active);
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        if (idx < items.length - 1) {
+          if (active) active.classList.remove("search-result-active");
+          items[idx + 1].classList.add("search-result-active");
+        }
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        if (idx > 0) {
+          if (active) active.classList.remove("search-result-active");
+          items[idx - 1].classList.add("search-result-active");
+        }
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        if (active) {
+          window.location.href = active.getAttribute("href");
+        }
+      } else if (e.key === "Escape") {
+        searchInput.value = "";
+        searchInput.blur();
+        closeSearch();
+      }
+    });
+
+    return searchInput;
+  }
+
+  // Desktop search
+  var desktopInput = setupSearch(
+    "search-input", "search-results",
+    document.getElementById("search-overlay"),
+    document.querySelector(".search-shortcut")
+  );
+
+  // Mobile search
+  setupSearch("mobile-search-input", "mobile-search-results", null, null);
+
+  // Global "/" shortcut (focus desktop input)
+  if (desktopInput) {
+    var shortcutHint = document.querySelector(".search-shortcut");
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "/" && document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "TEXTAREA") {
+        e.preventDefault();
+        desktopInput.focus();
+        if (shortcutHint) shortcutHint.style.display = "none";
+      }
+    });
   }
 })();

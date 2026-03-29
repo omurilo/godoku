@@ -18,6 +18,13 @@ language: en
 theme: default
 redirect: /docs/getting-started
 
+branding:
+  logo_light: /static/logo_light.svg
+  logo_dark: /static/logo_dark.svg
+  logo_alt: My Project Logo
+  logo_link: /
+  favicon: /static/favicon.ico
+
 navigation:
   - label: Docs
     path: /docs
@@ -44,8 +51,35 @@ sections:
 | `language` | string | `"en"` | HTML lang attribute |
 | `theme` | string | `"default"` | Theme name |
 | `redirect` | string | — | Redirect homepage to this path |
+| `branding` | object | — | Logo and favicon config |
 | `navigation` | list | — | Navbar links |
 | `sections` | object | — | Content directory paths |
+
+## Branding
+
+Customize the navbar logo and site favicon:
+
+```yaml
+branding:
+  logo_light: /static/logo_light.svg      # Image URL (replaces title text)
+  logo_dark: /static/logo_dark.svg      # Image URL (replaces title text)
+  logo_alt: My Project         # Logo alt text (defaults to title)
+  logo_link: /                 # Where the logo links to (defaults to /)
+  favicon: /static/favicon.ico # Favicon URL
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `logo` | string | — | Logo image URL. If empty, site title text is shown |
+| `logo_alt` | string | site title | Alt text for the logo image |
+| `logo_link` | string | `/` | URL the logo links to |
+| `favicon` | string | — | Favicon URL |
+
+:::tip {title="Using static files"}
+
+Place logo and favicon in your `static/` folder and reference them as `/static/logo.svg`. They'll be copied to `public/static/` during build.
+
+:::
 
 ## Navigation
 

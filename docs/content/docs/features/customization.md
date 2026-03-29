@@ -8,6 +8,12 @@ order: 5
 
 Godoku supports custom CSS and JavaScript files to personalize your documentation site without modifying the core templates.
 
+## Theme Toggle
+
+Every page includes a **light/dark theme toggle** button in the navbar. The user's preference is persisted in `localStorage` and applied instantly on page load (no flash of wrong theme).
+
+The built-in dark theme is the default. The light theme uses GitHub-style colors.
+
 ## Setup
 
 Create a `static/` folder in your project root and add `custom.css` and/or `custom.js`:

@@ -14,8 +14,17 @@ type Config struct {
 	Language    string       `yaml:"language"`
 	Theme       string       `yaml:"theme"`
 	Redirect    string       `yaml:"redirect,omitempty"`
+	Branding    Branding     `yaml:"branding"`
 	Navigation  []NavItem    `yaml:"navigation"`
 	Sections    SectionPaths `yaml:"sections"`
+}
+
+type Branding struct {
+	LogoLight string `yaml:"logo_light"`
+	LogoDark  string `yaml:"logo_dark"`
+	LogoAlt   string `yaml:"logo_alt"`
+	LogoLink  string `yaml:"logo_link"`
+	Favicon   string `yaml:"favicon"`
 }
 
 type NavItem struct {
@@ -36,6 +45,9 @@ func DefaultConfig() Config {
 		URL:         "http://localhost:3000",
 		Language:    "en",
 		Theme:       "default",
+		Branding: Branding{
+			LogoLink: "/",
+		},
 		Sections: SectionPaths{
 			Docs:      "content/docs",
 			Guides:    "content/guides",

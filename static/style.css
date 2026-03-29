@@ -19,6 +19,26 @@
     --navbar-height: 60px;
 }
 
+[data-theme="light"] {
+    --bg: #ffffff;
+    --bg-secondary: #f6f8fa;
+    --bg-tertiary: #eef1f5;
+    --text: #1f2328;
+    --text-secondary: #59636e;
+    --text-muted: #8b949e;
+    --border: #d1d9e0;
+    --accent: #0969da;
+    --accent-hover: #0550ae;
+    --success: #1a7f37;
+    --warning: #9a6700;
+    --danger: #d1242f;
+    --info: #0969da;
+    --code-bg: #24292e;
+    --inline-code-bg: #eff1f3;
+    --inline-code-color: #1f2328;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -42,7 +62,8 @@ a:hover { color: var(--accent-hover); }
 
 code {
     font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
-    background: var(--code-bg);
+    background: var(--inline-code-bg, var(--code-bg));
+    color: var(--inline-code-color, inherit);
     padding: 2px 6px;
     border-radius: 4px;
     font-size: 0.875em;
@@ -50,6 +71,7 @@ code {
 
 pre {
     background: var(--code-bg) !important;
+    color: #e6edf3;
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 1rem;
@@ -59,6 +81,7 @@ pre {
 
 pre code {
     background: none;
+    color: inherit;
     padding: 0;
     font-size: 0.875rem;
     line-height: 1.7;
@@ -89,11 +112,49 @@ pre code {
     font-weight: 700;
     color: var(--text);
     letter-spacing: -0.02em;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
+
+.logo-img {
+    height: 32px;
+    width: auto;
+}
+
+.logo-light { display: none; }
+.logo-dark { display: block; }
+
+[data-theme="light"] .logo-light { display: block; }
+[data-theme="light"] .logo-dark { display: none; }
 
 .logo:hover { color: var(--accent); }
 
-.nav-links { display: flex; gap: 0.25rem; }
+.nav-links { display: flex; gap: 0.25rem; align-items: center; }
+
+.theme-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-left: 0.25rem;
+}
+
+.theme-toggle:hover {
+    color: var(--text);
+    background: var(--bg-tertiary);
+}
+
+.theme-icon-light { display: none; }
+[data-theme="light"] .theme-icon-dark { display: none; }
+[data-theme="light"] .theme-icon-light { display: block; }
 
 .nav-link {
     color: var(--text-secondary);
@@ -741,22 +802,94 @@ pre code {
     font-size: 0.85rem;
 }
 
+/* Sidebar toggle (hamburger) - hidden on desktop */
+.sidebar-toggle {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.sidebar-toggle:hover {
+    background: var(--bg-tertiary);
+}
+
+/* Mobile nav panel - hidden on desktop */
+.mobile-nav {
+    display: none;
+}
+
+.mobile-nav.open {
+    display: block;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    padding: 1rem 1.5rem;
+}
+
+.mobile-nav-search {
+    margin-bottom: 0.75rem;
+    position: relative;
+}
+
+.mobile-nav-search .search-input {
+    width: 100%;
+}
+
+.mobile-nav-search .search-results {
+    left: 0;
+    right: 0;
+    width: 100%;
+}
+
+.mobile-nav-links {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 199;
+}
+
+.sidebar-overlay.active {
+    display: block;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
+    .sidebar-toggle { display: flex; }
+    .search-wrapper { display: none; }
+    .nav-links { display: none; }
+
     .docs-layout { flex-direction: column; }
     .sidebar {
+        display: none;
         width: 100%;
         position: static;
         height: auto;
+        max-height: 60vh;
+        overflow-y: auto;
         border-right: none;
         border-bottom: 1px solid var(--border);
-        padding: 1rem 0;
+        background: var(--bg-secondary);
+        padding: 1rem;
+    }
+    .sidebar.sidebar-open {
+        display: block;
     }
     .hero h1 { font-size: 2rem; }
-    .nav-links { gap: 0; }
-    .nav-link { padding: 0.5rem 0.5rem; font-size: 0.8rem; }
-    .search-wrapper { flex: 0 1 180px; }
-    .search-shortcut { display: none; }
 }
 
 /* API Playground */
