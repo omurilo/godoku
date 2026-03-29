@@ -1127,3 +1127,252 @@ select.playground-input {
     max-height: 400px;
     overflow-y: auto;
 }
+
+/* Table of Contents (TOC) */
+.toc {
+    width: 220px;
+    flex-shrink: 0;
+    padding: 2rem 0;
+    position: sticky;
+    top: var(--navbar-height);
+    height: calc(100vh - var(--navbar-height));
+    overflow-y: auto;
+    padding-left: 1rem;
+    border-left: 1px solid var(--border);
+}
+
+.toc-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 0.75rem;
+    padding: 0 0.5rem;
+}
+
+.toc-list {
+    list-style: none;
+}
+
+.toc-item {
+    margin-bottom: 2px;
+}
+
+.toc-level-3 { padding-left: 0.75rem; }
+.toc-level-4 { padding-left: 1.5rem; }
+
+.toc-link {
+    display: block;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    border-radius: 4px;
+    transition: all 0.15s;
+    line-height: 1.4;
+}
+
+.toc-link:hover {
+    color: var(--text);
+}
+
+.toc-link.active {
+    color: var(--accent);
+    border-left: 2px solid var(--accent);
+    padding-left: calc(0.5rem - 2px);
+}
+
+@media (max-width: 1100px) {
+    .toc { display: none; }
+}
+
+/* Banner */
+.banner {
+    padding: 0.625rem 1.5rem;
+    text-align: center;
+    font-size: 0.875rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    position: relative;
+}
+
+.banner-info {
+    background: rgba(88, 166, 255, 0.15);
+    color: var(--accent);
+    border-bottom: 1px solid rgba(88, 166, 255, 0.3);
+}
+
+.banner-note {
+    background: rgba(88, 166, 255, 0.15);
+    color: var(--accent);
+    border-bottom: 1px solid rgba(88, 166, 255, 0.3);
+}
+
+.banner-tip {
+    background: rgba(63, 185, 80, 0.15);
+    color: var(--success);
+    border-bottom: 1px solid rgba(63, 185, 80, 0.3);
+}
+
+.banner-warning, .banner-caution {
+    background: rgba(210, 153, 34, 0.15);
+    color: var(--warning);
+    border-bottom: 1px solid rgba(210, 153, 34, 0.3);
+}
+
+.banner-danger {
+    background: rgba(248, 81, 73, 0.15);
+    color: var(--danger);
+    border-bottom: 1px solid rgba(248, 81, 73, 0.3);
+}
+
+.banner-close {
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 1.25rem;
+    cursor: pointer;
+    padding: 0 0.25rem;
+    opacity: 0.7;
+    transition: opacity 0.15s;
+    line-height: 1;
+}
+
+.banner-close:hover { opacity: 1; }
+
+.banner.hidden { display: none; }
+
+/* Edit This Page */
+.edit-page {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+}
+
+.edit-page-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    transition: color 0.15s;
+}
+
+.edit-page-link:hover {
+    color: var(--accent);
+}
+
+/* 404 Page */
+.not-found {
+    text-align: center;
+    padding: 8rem 2rem;
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+.not-found h1 {
+    font-size: 6rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    background: linear-gradient(135deg, var(--accent), #a371f7);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 0.5rem;
+    line-height: 1;
+}
+
+.not-found p {
+    font-size: 1.25rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+}
+
+.not-found .not-found-desc {
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    margin-bottom: 2rem;
+}
+
+/* Code block title */
+.code-block-wrapper {
+    margin: 1rem 0;
+    position: relative;
+}
+
+.code-block-title {
+    display: inline-block;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-family: "JetBrains Mono", "Fira Code", monospace;
+    padding: 0.35rem 0.75rem;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: var(--radius) var(--radius) 0 0;
+    margin-bottom: -1px;
+    position: relative;
+    z-index: 1;
+}
+
+.code-block-wrapper pre {
+    margin-top: 0;
+    border-top-left-radius: 0;
+}
+
+/* Line highlighting in code blocks */
+.highlight-line {
+    background: rgba(88, 166, 255, 0.1);
+    display: block;
+    margin: 0 -1rem;
+    padding: 0 1rem;
+    border-left: 3px solid var(--accent);
+}
+
+/* Line numbers */
+.line-numbers {
+    counter-reset: line;
+}
+
+.line-numbers .line::before {
+    counter-increment: line;
+    content: counter(line);
+    display: inline-block;
+    width: 2.5em;
+    text-align: right;
+    padding-right: 1em;
+    color: var(--text-muted);
+    font-size: 0.8em;
+    user-select: none;
+    opacity: 0.5;
+}
+
+/* Copy button for code blocks */
+.code-copy-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.25rem 0.4rem;
+    font-size: 0.75rem;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s;
+    z-index: 2;
+}
+
+.code-block-wrapper:hover .code-copy-btn,
+pre:hover + .code-copy-btn,
+.code-copy-btn:hover {
+    opacity: 1;
+}
+
+.code-copy-btn:hover {
+    color: var(--text);
+}

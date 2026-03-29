@@ -40,6 +40,12 @@
     </script>
 </head>
 <body>
+    {{if .Config.Banner.Message}}
+    <div class="banner banner-{{if .Config.Banner.Color}}{{.Config.Banner.Color}}{{else}}info{{end}}" id="site-banner">
+        <span class="banner-message">{{.Config.Banner.Message}}</span>
+        {{if .Config.Banner.Dismissible}}<button class="banner-close" id="banner-close" aria-label="Dismiss">&times;</button>{{end}}
+    </div>
+    {{end}}
     <nav class="navbar">
         <div class="navbar-inner">
             <a href="{{if .Config.Branding.LogoLink}}{{.Config.Branding.LogoLink}}{{else}}/{{end}}" class="logo">

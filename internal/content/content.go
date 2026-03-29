@@ -17,6 +17,12 @@ import (
 	"go.abhg.dev/goldmark/mermaid"
 )
 
+type TOCEntry struct {
+	Level int
+	ID    string
+	Title string
+}
+
 type Page struct {
 	Title       string
 	Description string
@@ -30,6 +36,8 @@ type Page struct {
 	Content     string
 	FilePath    string
 	URLPath     string
+	Headings    []TOCEntry
+	SourcePath  string
 }
 
 type PageGroup struct {
@@ -146,6 +154,9 @@ func ParseMarkdown(source []byte, filePath string) (Page, error) {
 		page.Title = strings.ReplaceAll(page.Slug, "-", " ")
 		page.Title = strings.Title(page.Title)
 	}
+
+	page.Headings = extractHeadings(page.Content)
+	page.SourcePath = filePath
 
 	return page, nil
 }
@@ -386,6 +397,25 @@ func AllPages(groups []PageGroup, rootPages []Page) []Page {
 }
 
 // admonition types and their display titles
+var headingRe = regexp.MustCompile(`<h([2-4])\s+id="([^"]+)"[^>]*>([^<]*(?:<[^/][^>]*>[^<]*</[^>]*>)*[^<]*)</h[2-4]>`)
+
+func extractHeadings(html string) []TOCEntry {
+	matches := headingRe.FindAllStringSubmatch(html, -1)
+	var entries []TOCEntry
+	for _, m := range matches {
+		level := 2
+		if m[1] == "3" {
+			level = 3
+		} else if m[1] == "4" {
+			level = 4
+		}
+		// Strip any remaining HTML tags from title
+		title := regexp.MustCompile(`<[^>]+>`).ReplaceAllString(m[3], "")
+		entries = append(entries, TOCEntry{Level: level, ID: m[2], Title: strings.TrimSpace(title)})
+	}
+	return entries
+}
+
 var admonitionTitles = map[string]string{
 	"note":    "Note",
 	"info":    "Info",

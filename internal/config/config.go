@@ -18,6 +18,9 @@ type Config struct {
 	Footer      Footer       `yaml:"footer"`
 	Navigation  []NavItem    `yaml:"navigation"`
 	Sections    SectionPaths `yaml:"sections"`
+	Banner      Banner       `yaml:"banner,omitempty"`
+	EditBaseURL string       `yaml:"edit_base_url,omitempty"`
+	LLMs        LLMsConfig   `yaml:"llms,omitempty"`
 }
 
 type Branding struct {
@@ -60,6 +63,17 @@ type FooterSocial struct {
 	Icon  string `yaml:"icon"`
 	Href  string `yaml:"href"`
 	Label string `yaml:"label"`
+}
+
+type Banner struct {
+	Message     string `yaml:"message"`
+	Color       string `yaml:"color"`
+	Dismissible bool   `yaml:"dismissible"`
+}
+
+type LLMsConfig struct {
+	LLMsTxt     bool `yaml:"llms_txt"`
+	LLMsTxtFull bool `yaml:"llms_txt_full"`
 }
 
 func DefaultConfig() Config {

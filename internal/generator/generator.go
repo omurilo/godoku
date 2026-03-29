@@ -32,6 +32,7 @@ type Generator struct {
 	NavItems     []config.NavItem
 	sitemapURLs  []string
 	searchIndex  []searchEntry
+	llmsEntries  []llmsEntry
 	hasCustomCSS bool
 	hasCustomJS  bool
 }
@@ -42,6 +43,13 @@ type searchEntry struct {
 	Section     string `json:"section"`
 	URL         string `json:"url"`
 	Content     string `json:"content,omitempty"`
+}
+
+type llmsEntry struct {
+	Title       string
+	Description string
+	URL         string
+	Content     string
 }
 
 func New(cfg config.Config, rootDir string) *Generator {
@@ -103,6 +111,16 @@ func (g *Generator) Build() error {
 	}
 	if err := g.buildSearchIndex(); err != nil {
 		return fmt.Errorf("building search index: %w", err)
+	}
+
+	if err := g.build404(); err != nil {
+		return fmt.Errorf("building 404 page: %w", err)
+	}
+
+	if g.Config.LLMs.LLMsTxt || g.Config.LLMs.LLMsTxtFull {
+		if err := g.buildLLMsTxt(); err != nil {
+			return fmt.Errorf("building llms.txt: %w", err)
+		}
 	}
 
 	return nil
@@ -184,6 +202,7 @@ func (g *Generator) loadTemplates() (*template.Template, error) {
 		"isExternal": func(href string) bool {
 			return strings.HasPrefix(href, "http://") || strings.HasPrefix(href, "https://")
 		},
+		"sub": func(a, b int) int { return a - b },
 		"statusClass": func(code string) string {
 			if strings.HasPrefix(code, "2") {
 				return "2xx"
@@ -376,6 +395,23 @@ func (g *Generator) buildSection(section string, contentDir string) error {
 			Content:     stripHTML(page.Content),
 		})
 
+		// Collect for llms.txt
+		g.llmsEntries = append(g.llmsEntries, llmsEntry{
+			Title:       page.Title,
+			Description: page.Description,
+			URL:         page.URLPath + "/",
+			Content:     stripHTML(page.Content),
+		})
+
+		// Build edit URL
+		var editURL string
+		if g.Config.EditBaseURL != "" && page.SourcePath != "" {
+			rel, err := filepath.Rel(g.RootDir, page.SourcePath)
+			if err == nil {
+				editURL = strings.TrimRight(g.Config.EditBaseURL, "/") + "/" + filepath.ToSlash(rel)
+			}
+		}
+
 		pageData := sectionData{
 			Config:       g.Config,
 			SectionTitle: sectionTitle,
@@ -386,6 +422,7 @@ func (g *Generator) buildSection(section string, contentDir string) error {
 			ActivePage:   &page,
 			PrevPage:     prevPage,
 			NextPage:     nextPage,
+			EditURL:      editURL,
 		}
 
 		html, err := g.renderPage(tmpl, "section", pageData, pageMeta{
@@ -424,6 +461,7 @@ type sectionData struct {
 	ActivePage   *content.Page
 	PrevPage     *content.Page
 	NextPage     *content.Page
+	EditURL      string
 }
 
 func (g *Generator) buildNavItems() []config.NavItem {
@@ -626,4 +664,85 @@ func (g *Generator) buildSearchIndex() error {
 		return fmt.Errorf("marshaling search index: %w", err)
 	}
 	return g.writePage(filepath.Join(g.OutDir, "search-index.json"), string(data))
+}
+
+func (g *Generator) build404() error {
+	tmpl, err := g.loadTemplates()
+	if err != nil {
+		return err
+	}
+
+	notFoundHTML := `<div class="not-found">
+	<h1>404</h1>
+	<p>Page not found</p>
+	<p class="not-found-desc">The page you're looking for doesn't exist or has been moved.</p>
+	<a href="/" class="btn">Go Home</a>
+</div>`
+
+	html, err := g.renderPage(tmpl, "raw", struct{ Content template.HTML }{Content: template.HTML(notFoundHTML)}, pageMeta{
+		Title: "Page Not Found",
+		Path:  "/404.html",
+	})
+	if err != nil {
+		// If "raw" template doesn't exist, write a simple page
+		ld := layoutData{
+			Config:          g.Config,
+			NavItems:        g.NavItems,
+			PageTitle:       "Page Not Found",
+			PageDescription: "The page you're looking for doesn't exist.",
+			CanonicalURL:    g.Config.URL + "/404.html",
+			OGType:          "website",
+			HasCustomCSS:    g.hasCustomCSS,
+			HasCustomJS:     g.hasCustomJS,
+			Body:            template.HTML(notFoundHTML),
+		}
+		var pageBuf bytes.Buffer
+		if err := tmpl.ExecuteTemplate(&pageBuf, "layout", ld); err != nil {
+			return err
+		}
+		return g.writePage(filepath.Join(g.OutDir, "404.html"), pageBuf.String())
+	}
+
+	return g.writePage(filepath.Join(g.OutDir, "404.html"), html)
+}
+
+func (g *Generator) buildLLMsTxt() error {
+	baseURL := strings.TrimRight(g.Config.URL, "/")
+
+	if g.Config.LLMs.LLMsTxt {
+		var sb strings.Builder
+		sb.WriteString("# " + g.Config.Title + "\n\n")
+		if g.Config.Description != "" {
+			sb.WriteString("> " + g.Config.Description + "\n\n")
+		}
+		for _, entry := range g.llmsEntries {
+			line := "- [" + entry.Title + "](" + baseURL + entry.URL + ")"
+			if entry.Description != "" {
+				line += ": " + entry.Description
+			}
+			sb.WriteString(line + "\n")
+		}
+		if err := g.writePage(filepath.Join(g.OutDir, "llms.txt"), sb.String()); err != nil {
+			return err
+		}
+	}
+
+	if g.Config.LLMs.LLMsTxtFull {
+		var sb strings.Builder
+		sb.WriteString("# " + g.Config.Title + "\n\n")
+		if g.Config.Description != "" {
+			sb.WriteString("> " + g.Config.Description + "\n\n")
+		}
+		for _, entry := range g.llmsEntries {
+			sb.WriteString("## " + entry.Title + "\n\n")
+			if entry.Content != "" {
+				sb.WriteString(entry.Content + "\n\n")
+			}
+		}
+		if err := g.writePage(filepath.Join(g.OutDir, "llms-full.txt"), sb.String()); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

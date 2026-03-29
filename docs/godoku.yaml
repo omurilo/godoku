@@ -19,6 +19,17 @@ sections:
   guides: content/guides
   tutorials: content/tutorials
 
+edit_base_url: https://github.com/omurilo/godoku/edit/main/docs
+
+banner:
+  message: "🚀 Godoku v1.1.0 released — now with TOC, banners, llms.txt and more!"
+  color: info
+  dismissible: true
+
+llms:
+  llms_txt: true
+  llms_txt_full: true
+
 footer:
   position: center
   copyright: "© 2026 Godoku. Built with ❤️ in Go."

@@ -62,7 +62,31 @@ func (s *Server) Start() error {
 			}
 		}
 
-		fileServer.ServeHTTP(w, r)
+		// Check if the requested file exists
+		if filepath.Ext(path) != "" {
+			if fileExists(fullPath) {
+				fileServer.ServeHTTP(w, r)
+				return
+			}
+		} else if strings.HasSuffix(path, "/") {
+			indexPath := filepath.Join(fullPath, "index.html")
+			if fileExists(indexPath) {
+				fileServer.ServeHTTP(w, r)
+				return
+			}
+		}
+
+		// Serve custom 404 page
+		notFoundPath := filepath.Join(publicDir, "404.html")
+		if fileExists(notFoundPath) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(http.StatusNotFound)
+			data, _ := os.ReadFile(notFoundPath)
+			w.Write(data)
+			return
+		}
+
+		http.NotFound(w, r)
 	})
 
 	addr := fmt.Sprintf(":%d", s.Port)

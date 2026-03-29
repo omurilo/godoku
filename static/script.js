@@ -31,10 +31,12 @@ document.addEventListener("DOMContentLoaded", function () {
   // Smooth scroll for anchor links
   document.querySelectorAll('a[href^="#"]').forEach(function (anchor) {
     anchor.addEventListener("click", function (e) {
-      e.preventDefault();
-      const target = document.querySelector(this.getAttribute("href"));
+      var id = this.getAttribute("href").substring(1);
+      var target = document.getElementById(id);
       if (target) {
+        e.preventDefault();
         target.scrollIntoView({ behavior: "smooth" });
+        history.pushState(null, null, "#" + id);
       }
     });
   });
@@ -71,6 +73,77 @@ document.addEventListener("DOMContentLoaded", function () {
       if (sidebar) sidebar.classList.toggle("sidebar-open", isOpen);
     });
   }
+
+  // Banner dismiss
+  var bannerClose = document.getElementById("banner-close");
+  if (bannerClose) {
+    var banner = document.getElementById("site-banner");
+    if (sessionStorage.getItem("godoku-banner-dismissed")) {
+      banner.classList.add("hidden");
+    }
+    bannerClose.addEventListener("click", function () {
+      banner.classList.add("hidden");
+      sessionStorage.setItem("godoku-banner-dismissed", "1");
+    });
+  }
+
+  // TOC active tracking
+  var tocLinks = document.querySelectorAll(".toc-link");
+  if (tocLinks.length > 0) {
+    var headingEls = [];
+    tocLinks.forEach(function (link) {
+      var href = link.getAttribute("href");
+      if (!href) return;
+      var id = href.substring(1);
+      var el = document.getElementById(id);
+      if (el) headingEls.push({ el: el, link: link });
+    });
+
+    function updateTOC() {
+      var scrollY = window.scrollY + 100;
+      var active = null;
+      for (var i = headingEls.length - 1; i >= 0; i--) {
+        if (headingEls[i].el.offsetTop <= scrollY) {
+          active = headingEls[i].link;
+          break;
+        }
+      }
+      tocLinks.forEach(function (l) { l.classList.remove("active"); });
+      if (active) active.classList.add("active");
+    }
+
+    window.addEventListener("scroll", updateTOC, { passive: true });
+    updateTOC();
+  }
+
+  // Code block enhancements: copy button + title wrapping
+  document.querySelectorAll("pre").forEach(function (pre) {
+    // Skip playground response blocks
+    if (pre.closest(".playground-result")) return;
+
+    var wrapper = document.createElement("div");
+    wrapper.className = "code-block-wrapper";
+    pre.parentNode.insertBefore(wrapper, pre);
+    wrapper.appendChild(pre);
+
+    // Copy button
+    var copyBtn = document.createElement("button");
+    copyBtn.className = "code-copy-btn";
+    copyBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
+    copyBtn.title = "Copy code";
+    wrapper.appendChild(copyBtn);
+
+    copyBtn.addEventListener("click", function () {
+      var code = pre.querySelector("code");
+      var text = code ? code.textContent : pre.textContent;
+      navigator.clipboard.writeText(text).then(function () {
+        copyBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
+        setTimeout(function () {
+          copyBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
+        }, 2000);
+      });
+    });
+  });
 });
 
 // API Playground

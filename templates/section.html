@@ -28,6 +28,14 @@
         <div class="markdown-body">
             {{.ActivePage.Content | safeHTML}}
         </div>
+        {{if .EditURL}}
+        <div class="edit-page">
+            <a href="{{.EditURL}}" target="_blank" rel="noopener noreferrer" class="edit-page-link">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                Edit this page
+            </a>
+        </div>
+        {{end}}
         <nav class="page-nav">
             {{if .PrevPage}}
             <a href="{{.PrevPage.URLPath}}" class="page-nav-link prev">
@@ -69,4 +77,16 @@
         </div>
         {{end}}
     </article>
+    {{if and .ActivePage .ActivePage.Headings}}
+    <aside class="toc">
+        <h4 class="toc-title">On this page</h4>
+        <ul class="toc-list">
+            {{range .ActivePage.Headings}}
+            <li class="toc-item toc-level-{{.Level}}">
+                <a href="#{{.ID}}" class="toc-link">{{.Title}}</a>
+            </li>
+            {{end}}
+        </ul>
+    </aside>
+    {{end}}
 </div>
