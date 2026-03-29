@@ -15,6 +15,7 @@ type Config struct {
 	Theme       string       `yaml:"theme"`
 	Redirect    string       `yaml:"redirect,omitempty"`
 	Branding    Branding     `yaml:"branding"`
+	Footer      Footer       `yaml:"footer"`
 	Navigation  []NavItem    `yaml:"navigation"`
 	Sections    SectionPaths `yaml:"sections"`
 }
@@ -36,6 +37,29 @@ type SectionPaths struct {
 	Docs      string `yaml:"docs"`
 	Guides    string `yaml:"guides"`
 	Tutorials string `yaml:"tutorials"`
+}
+
+type Footer struct {
+	Copyright string         `yaml:"copyright"`
+	Position  string         `yaml:"position"`
+	Columns   []FooterColumn `yaml:"columns"`
+	Social    []FooterSocial `yaml:"social"`
+}
+
+type FooterColumn struct {
+	Title string       `yaml:"title"`
+	Links []FooterLink `yaml:"links"`
+}
+
+type FooterLink struct {
+	Label string `yaml:"label"`
+	Href  string `yaml:"href"`
+}
+
+type FooterSocial struct {
+	Icon  string `yaml:"icon"`
+	Href  string `yaml:"href"`
+	Label string `yaml:"label"`
 }
 
 func DefaultConfig() Config {

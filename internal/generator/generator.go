@@ -181,6 +181,9 @@ func (g *Generator) loadTemplates() (*template.Template, error) {
 		"lower":    strings.ToLower,
 		"upper":    strings.ToUpper,
 		"safeHTML": func(s string) template.HTML { return template.HTML(s) },
+		"isExternal": func(href string) bool {
+			return strings.HasPrefix(href, "http://") || strings.HasPrefix(href, "https://")
+		},
 		"statusClass": func(code string) string {
 			if strings.HasPrefix(code, "2") {
 				return "2xx"

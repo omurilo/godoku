@@ -13,3 +13,27 @@ sections:
   docs: content/docs
   guides: content/guides
   tutorials: content/tutorials
+
+footer:
+  position: center
+  copyright: "© 2026 Godoku. Built with ❤️ in Go."
+  columns:
+    - title: Documentation
+      links:
+        - label: Getting Started
+          href: /docs/getting-started
+        - label: Configuration
+          href: /docs/configuration
+        - label: Features
+          href: /docs/features/sections
+    - title: Guides
+      links:
+        - label: GitHub Pages
+          href: /guides/github-pages
+        - label: Self Hosting
+          href: /guides/self-hosting
+  social:
+    - icon: github
+      href: https://github.com/omurilo/godoku
+    - icon: bluesky
+      href: https://bsky.app/profile/omurilo.dev
