@@ -53,9 +53,6 @@ func New(cfg config.Config, rootDir string) *Generator {
 }
 
 func (g *Generator) Build() error {
-	if err := os.RemoveAll(g.OutDir); err != nil {
-		return fmt.Errorf("cleaning output: %w", err)
-	}
 	if err := os.MkdirAll(g.OutDir, 0755); err != nil {
 		return fmt.Errorf("creating output dir: %w", err)
 	}
