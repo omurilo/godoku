@@ -4,6 +4,11 @@ url: https://godoku.omurilo.dev
 language: en
 theme: default
 redirect: /docs/getting-started
+branding:
+  logo_dark: /static/logo-dark.svg
+  logo_light: /static/logo-light.svg
+  logo_alt: Godoku
+  logo_link: /
 navigation:
   - label: Docs
     path: /docs

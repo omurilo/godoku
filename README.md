@@ -1,6 +1,16 @@
-# Godoku
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/static/logo-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/static/logo-light.svg">
+    <img alt="Godoku" src="docs/static/logo-dark.svg" height="48">
+  </picture>
+</p>
 
-A fast, zero-dependency static site generator for documentation and API references, built in Go.
+<p align="center">
+  A fast, zero-dependency static site generator for documentation and API references, built in Go.
+</p>
+
+---
 
 Godoku takes your Markdown files and OpenAPI v3 specs and generates a beautiful, dark-themed documentation site — complete with sidebar navigation, syntax highlighting, and an interactive API playground.
 
