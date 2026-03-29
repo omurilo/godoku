@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -102,6 +103,9 @@ func ParseMarkdownFile(filePath string) (Page, error) {
 }
 
 func ParseMarkdown(source []byte, filePath string) (Page, error) {
+	// Pre-process admonitions (:::type blocks)
+	source = processAdmonitions(source)
+
 	var buf bytes.Buffer
 	ctx := parser.NewContext()
 
@@ -377,4 +381,56 @@ func AllPages(groups []PageGroup, rootPages []Page) []Page {
 		all = append(all, g.Pages...)
 	}
 	return all
+}
+
+// admonition types and their display titles
+var admonitionTitles = map[string]string{
+	"note":    "Note",
+	"info":    "Info",
+	"tip":     "Tip",
+	"warning": "Warning",
+	"danger":  "Danger",
+	"caution": "Caution",
+}
+
+var admonitionOpenRe = regexp.MustCompile(`^:::(note|info|tip|warning|danger|caution)\s*(?:\{title="([^"]*)"})?\s*$`)
+
+// processAdmonitions converts :::type / ::: blocks into HTML divs.
+func processAdmonitions(source []byte) []byte {
+	lines := strings.Split(string(source), "\n")
+	var result []string
+	var stack []string
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		if matches := admonitionOpenRe.FindStringSubmatch(trimmed); matches != nil {
+			adType := matches[1]
+			customTitle := matches[2]
+			title := customTitle
+			if title == "" {
+				title = admonitionTitles[adType]
+			}
+			stack = append(stack, adType)
+			result = append(result, "")
+			result = append(result, `<div class="admonition admonition-`+adType+`">`)
+			result = append(result, `<div class="admonition-title">`+title+`</div>`)
+			result = append(result, `<div class="admonition-body">`)
+			result = append(result, "")
+			continue
+		}
+
+		if trimmed == ":::" && len(stack) > 0 {
+			stack = stack[:len(stack)-1]
+			result = append(result, "")
+			result = append(result, `</div>`)
+			result = append(result, `</div>`)
+			result = append(result, "")
+			continue
+		}
+
+		result = append(result, line)
+	}
+
+	return []byte(strings.Join(result, "\n"))
 }

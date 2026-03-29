@@ -7,5 +7,6 @@ nav:
   - playground
   - navigation
   - search
+  - admonitions
   - customization
 ---
