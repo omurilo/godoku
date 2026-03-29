@@ -6,5 +6,6 @@ nav:
   - openapi
   - playground
   - navigation
+  - search
   - customization
 ---
