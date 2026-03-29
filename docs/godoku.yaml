@@ -3,7 +3,6 @@ description: Static site generator for documentation & API references, built in 
 url: https://godoku.omurilo.dev
 language: en
 theme: default
-redirect: /docs/getting-started
 branding:
   logo_dark: /static/logo-dark.svg
   logo_light: /static/logo-light.svg
@@ -17,12 +16,11 @@ navigation:
 sections:
   docs: content/docs
   guides: content/guides
-  tutorials: content/tutorials
 
 edit_base_url: https://github.com/omurilo/godoku/edit/main/docs
 
 banner:
-  message: "🚀 Godoku v1.1.0 released — now with TOC, banners, llms.txt and more!"
+  message: "🚀 Godoku v1.1.1 released — now with TOC, banners, llms.txt and more!"
   color: info
   dismissible: true
 

@@ -80,6 +80,76 @@ func (g *Generator) Build() error {
 		return fmt.Errorf("building index: %w", err)
 	}
 
+	// --- Custom: Process root-level markdown files in content/ ---
+	rootContentDir := filepath.Join(g.RootDir, "content")
+	entries, err := os.ReadDir(rootContentDir)
+	if err == nil {
+		tmpl, tmplErr := g.loadTemplates()
+		if tmplErr != nil {
+			return fmt.Errorf("loading templates for root content: %w", tmplErr)
+		}
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") || entry.Name() == "_index.md" {
+				continue
+			}
+			page, perr := content.ParseMarkdownFile(filepath.Join(rootContentDir, entry.Name()))
+			if perr != nil || page.Draft {
+				continue
+			}
+			// Determine output path
+			var outPath, urlPath string
+			if entry.Name() == "index.md" {
+				outPath = filepath.Join(g.OutDir, "index.html")
+				urlPath = "/"
+			} else {
+				outPath = filepath.Join(g.OutDir, page.Slug, "index.html")
+				urlPath = "/" + page.Slug + "/"
+			}
+			html, rerr := g.renderPage(tmpl, "section", struct {
+				Config       config.Config
+				SectionTitle string
+				Groups       []content.PageGroup
+				RootPages    []content.Page
+				AllPages     []content.Page
+				ActiveSlug   string
+				ActivePage   *content.Page
+				PrevPage     *content.Page
+				NextPage     *content.Page
+				EditURL      string
+			}{
+				Config:       g.Config,
+				SectionTitle: "",
+				Groups:       nil,
+				RootPages:    []content.Page{page},
+				AllPages:     []content.Page{page},
+				ActiveSlug:   page.Slug,
+				ActivePage:   &page,
+				PrevPage:     nil,
+				NextPage:     nil,
+				EditURL:      "",
+			}, pageMeta{
+				Title:       page.Title,
+				Description: page.Description,
+				Path:        urlPath,
+			})
+			if rerr != nil {
+				return fmt.Errorf("rendering root content page %s: %w", entry.Name(), rerr)
+			}
+			if werr := g.writePage(outPath, html); werr != nil {
+				return fmt.Errorf("writing root content page %s: %w", entry.Name(), werr)
+			}
+			// Add to sitemap and search index
+			g.sitemapURLs = append(g.sitemapURLs, urlPath)
+			g.searchIndex = append(g.searchIndex, searchEntry{
+				Title:       page.Title,
+				Description: page.Description,
+				Section:     "",
+				URL:         urlPath,
+				Content:     stripHTML(page.Content),
+			})
+		}
+	}
+
 	sections := map[string]string{
 		"docs":      g.Config.Sections.Docs,
 		"guides":    g.Config.Sections.Guides,
@@ -311,6 +381,7 @@ func (g *Generator) writePage(outputPath string, htmlContent string) error {
 }
 
 func (g *Generator) buildIndex() error {
+	// If redirect is set, generate redirect index.html
 	if g.Config.Redirect != "" {
 		redirectHTML := fmt.Sprintf(`<!DOCTYPE html>
 <html>
@@ -323,22 +394,63 @@ func (g *Generator) buildIndex() error {
 		return g.writePage(filepath.Join(g.OutDir, "index.html"), redirectHTML)
 	}
 
+	// If content/index.md exists, render it as /index.html
+	indexMdPath := filepath.Join(g.RootDir, "content", "index.md")
+	if _, err := os.Stat(indexMdPath); err == nil {
+		page, perr := content.ParseMarkdownFile(indexMdPath)
+		if perr == nil && !page.Draft {
+			tmpl, tmplErr := g.loadTemplates()
+			if tmplErr != nil {
+				return tmplErr
+			}
+			html, rerr := g.renderPage(tmpl, "section", struct {
+				Config       config.Config
+				SectionTitle string
+				Groups       []content.PageGroup
+				RootPages    []content.Page
+				AllPages     []content.Page
+				ActiveSlug   string
+				ActivePage   *content.Page
+				PrevPage     *content.Page
+				NextPage     *content.Page
+				EditURL      string
+			}{
+				Config:       g.Config,
+				SectionTitle: "",
+				Groups:       nil,
+				RootPages:    []content.Page{page},
+				AllPages:     []content.Page{page},
+				ActiveSlug:   page.Slug,
+				ActivePage:   &page,
+				PrevPage:     nil,
+				NextPage:     nil,
+				EditURL:      "",
+			}, pageMeta{
+				Title:       page.Title,
+				Description: page.Description,
+				Path:        "/",
+			})
+			if rerr != nil {
+				return rerr
+			}
+			return g.writePage(filepath.Join(g.OutDir, "index.html"), html)
+		}
+	}
+
+	// Otherwise, use the default homepage
 	tmpl, err := g.loadTemplates()
 	if err != nil {
 		return err
 	}
-
 	data := struct {
 		Config config.Config
 	}{
 		Config: g.Config,
 	}
-
 	html, err := g.renderPage(tmpl, "index", data, pageMeta{Title: "Home", Path: "/"})
 	if err != nil {
 		return err
 	}
-
 	return g.writePage(filepath.Join(g.OutDir, "index.html"), html)
 }
 
