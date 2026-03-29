@@ -24,10 +24,11 @@ func SetEmbedFS(templates, static embed.FS) {
 }
 
 type Generator struct {
-	Config   config.Config
-	RootDir  string
-	OutDir   string
-	NavItems []config.NavItem
+	Config      config.Config
+	RootDir     string
+	OutDir      string
+	NavItems    []config.NavItem
+	sitemapURLs []string
 }
 
 func New(cfg config.Config, rootDir string) *Generator {
@@ -78,6 +79,13 @@ func (g *Generator) Build() error {
 		if err := g.buildAPI(apiFiles); err != nil {
 			return fmt.Errorf("building API docs: %w", err)
 		}
+	}
+
+	if err := g.buildSitemap(); err != nil {
+		return fmt.Errorf("building sitemap: %w", err)
+	}
+	if err := g.buildRobotsTxt(); err != nil {
+		return fmt.Errorf("building robots.txt: %w", err)
 	}
 
 	return nil
@@ -156,29 +164,56 @@ func (g *Generator) loadTemplates() (*template.Template, error) {
 	return tmpl, nil
 }
 
-type layoutData struct {
-	Config    config.Config
-	NavItems  []config.NavItem
-	PageTitle string
-	Body      template.HTML
+type pageMeta struct {
+	Title       string
+	Description string
+	Path        string
 }
 
-func (g *Generator) renderPage(tmpl *template.Template, templateName string, data interface{}, pageTitle string) (string, error) {
+type layoutData struct {
+	Config          config.Config
+	NavItems        []config.NavItem
+	PageTitle       string
+	PageDescription string
+	CanonicalURL    string
+	OGType          string
+	Body            template.HTML
+}
+
+func (g *Generator) renderPage(tmpl *template.Template, templateName string, data interface{}, meta pageMeta) (string, error) {
 	var bodyBuf bytes.Buffer
 	if err := tmpl.ExecuteTemplate(&bodyBuf, templateName, data); err != nil {
 		return "", fmt.Errorf("executing template %s: %w", templateName, err)
 	}
 
+	desc := meta.Description
+	if desc == "" {
+		desc = g.Config.Description
+	}
+
+	ogType := "article"
+	if meta.Path == "/" || meta.Path == "" {
+		ogType = "website"
+	}
+
+	canonical := strings.TrimRight(g.Config.URL, "/") + meta.Path
+
 	var pageBuf bytes.Buffer
 	ld := layoutData{
-		Config:    g.Config,
-		NavItems:  g.NavItems,
-		PageTitle: pageTitle,
-		Body:      template.HTML(bodyBuf.String()),
+		Config:          g.Config,
+		NavItems:        g.NavItems,
+		PageTitle:       meta.Title,
+		PageDescription: desc,
+		CanonicalURL:    canonical,
+		OGType:          ogType,
+		Body:            template.HTML(bodyBuf.String()),
 	}
 	if err := tmpl.ExecuteTemplate(&pageBuf, "layout", ld); err != nil {
 		return "", fmt.Errorf("executing layout: %w", err)
 	}
+
+	// Track page for sitemap
+	g.sitemapURLs = append(g.sitemapURLs, meta.Path)
 
 	return pageBuf.String(), nil
 }
@@ -215,7 +250,7 @@ func (g *Generator) buildIndex() error {
 		Config: g.Config,
 	}
 
-	html, err := g.renderPage(tmpl, "index", data, "Home")
+	html, err := g.renderPage(tmpl, "index", data, pageMeta{Title: "Home", Path: "/"})
 	if err != nil {
 		return err
 	}
@@ -247,7 +282,7 @@ func (g *Generator) buildSection(section string, contentDir string) error {
 		AllPages:     allPages,
 	}
 
-	html, err := g.renderPage(tmpl, "section", indexData, sectionTitle)
+	html, err := g.renderPage(tmpl, "section", indexData, pageMeta{Title: sectionTitle, Path: "/" + section + "/"})
 	if err != nil {
 		return err
 	}
@@ -279,7 +314,11 @@ func (g *Generator) buildSection(section string, contentDir string) error {
 			NextPage:     nextPage,
 		}
 
-		html, err := g.renderPage(tmpl, "section", pageData, page.Title)
+		html, err := g.renderPage(tmpl, "section", pageData, pageMeta{
+			Title:       page.Title,
+			Description: page.Description,
+			Path:        page.URLPath + "/",
+		})
 		if err != nil {
 			return err
 		}
@@ -369,7 +408,7 @@ func (g *Generator) buildAPI(apiFiles []string) error {
 		APIs:   docs,
 	}
 
-	html, err := g.renderPage(tmpl, "api_catalog", catalogData, "API Reference")
+	html, err := g.renderPage(tmpl, "api_catalog", catalogData, pageMeta{Title: "API Reference", Path: "/api/"})
 	if err != nil {
 		return err
 	}
@@ -412,7 +451,11 @@ func (g *Generator) buildSingleAPI(tmpl *template.Template, doc *openapi.APIDoc,
 		BasePath:    basePath,
 	}
 
-	html, err := g.renderPage(tmpl, "api_index", indexData, doc.Title)
+	html, err := g.renderPage(tmpl, "api_index", indexData, pageMeta{
+		Title:       doc.Title,
+		Description: doc.Description,
+		Path:        basePath + "/",
+	})
 	if err != nil {
 		return err
 	}
@@ -438,7 +481,11 @@ func (g *Generator) buildSingleAPI(tmpl *template.Template, doc *openapi.APIDoc,
 			Servers:    doc.Servers,
 		}
 
-		html, err := g.renderPage(tmpl, "api_endpoint", epData, endpoint.Method+" "+endpoint.Path)
+		html, err := g.renderPage(tmpl, "api_endpoint", epData, pageMeta{
+			Title:       endpoint.Method + " " + endpoint.Path,
+			Description: endpoint.Summary,
+			Path:        basePath + "/" + endpoint.Slug + "/",
+		})
 		if err != nil {
 			return err
 		}
@@ -449,4 +496,29 @@ func (g *Generator) buildSingleAPI(tmpl *template.Template, doc *openapi.APIDoc,
 	}
 
 	return nil
+}
+
+func (g *Generator) buildSitemap() error {
+	baseURL := strings.TrimRight(g.Config.URL, "/")
+
+	var sb strings.Builder
+	sb.WriteString("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
+	sb.WriteString("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n")
+
+	for _, path := range g.sitemapURLs {
+		sb.WriteString("  <url>\n")
+		sb.WriteString("    <loc>" + baseURL + path + "</loc>\n")
+		sb.WriteString("  </url>\n")
+	}
+
+	sb.WriteString("</urlset>\n")
+
+	return g.writePage(filepath.Join(g.OutDir, "sitemap.xml"), sb.String())
+}
+
+func (g *Generator) buildRobotsTxt() error {
+	baseURL := strings.TrimRight(g.Config.URL, "/")
+
+	content := "User-agent: *\nAllow: /\n\nSitemap: " + baseURL + "/sitemap.xml\n"
+	return g.writePage(filepath.Join(g.OutDir, "robots.txt"), content)
 }

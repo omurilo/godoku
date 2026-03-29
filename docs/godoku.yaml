@@ -1,6 +1,6 @@
 title: Godoku
 description: Static site generator for documentation & API references, built in Go
-url: https://omurilo.github.io/godoku
+url: https://godoku.omurilo.dev
 language: en
 theme: default
 redirect: /docs/getting-started

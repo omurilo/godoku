@@ -4,7 +4,34 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.PageTitle}} - {{.Config.Title}}</title>
-    <meta name="description" content="{{.Config.Description}}">
+    <meta name="description" content="{{.PageDescription}}">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="{{.CanonicalURL}}">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="{{.OGType}}">
+    <meta property="og:title" content="{{.PageTitle}} - {{.Config.Title}}">
+    <meta property="og:description" content="{{.PageDescription}}">
+    <meta property="og:url" content="{{.CanonicalURL}}">
+    <meta property="og:site_name" content="{{.Config.Title}}">
+    <meta property="og:locale" content="{{.Config.Language}}">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="{{.PageTitle}} - {{.Config.Title}}">
+    <meta name="twitter:description" content="{{.PageDescription}}">
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "{{.Config.Title}}",
+        "description": "{{.Config.Description}}",
+        "url": "{{.Config.URL}}"
+    }
+    </script>
+
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
