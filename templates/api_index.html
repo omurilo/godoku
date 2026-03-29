@@ -3,8 +3,11 @@
         <h3 class="sidebar-title">{{.Title}}</h3>
         {{range $tag, $endpoints := .TagGroups}}
         <div class="sidebar-group">
-            <h4 class="sidebar-group-title">{{$tag}}</h4>
-            <ul class="sidebar-nav">
+            <button class="sidebar-group-toggle" aria-expanded="true">
+                <span>{{$tag}}</span>
+                <svg class="sidebar-chevron" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4.427 7.427l3.396 3.396a.25.25 0 00.354 0l3.396-3.396A.25.25 0 0011.396 7H4.604a.25.25 0 00-.177.427z"/></svg>
+            </button>
+            <ul class="sidebar-nav sidebar-group-items">
                 {{range $endpoints}}
                 <li>
                     <a href="{{$.BasePath}}/{{.Slug}}" class="sidebar-link {{if eq .Slug $.ActiveSlug}}active{{end}}">

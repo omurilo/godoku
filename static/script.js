@@ -21,6 +21,60 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     });
   });
+
+  // Collapsible sidebar groups with localStorage persistence
+  var STORAGE_KEY = "godoku-collapsed-groups";
+
+  function getCollapsedGroups() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function saveCollapsedGroups(state) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (e) {}
+  }
+
+  var collapsedState = getCollapsedGroups();
+
+  document.querySelectorAll(".sidebar-group").forEach(function (group) {
+    var toggle = group.querySelector(".sidebar-group-toggle");
+    if (!toggle) return;
+    var groupName = toggle.textContent.trim();
+    var hasActive = group.querySelector(".sidebar-link.active");
+
+    // Use saved state if exists, otherwise collapse groups without active page
+    var shouldCollapse;
+    if (groupName in collapsedState) {
+      shouldCollapse = collapsedState[groupName];
+      // Always expand the group with active page regardless of saved state
+      if (hasActive) shouldCollapse = false;
+    } else {
+      shouldCollapse = !hasActive;
+    }
+
+    if (shouldCollapse) {
+      group.classList.add("collapsed");
+      toggle.setAttribute("aria-expanded", "false");
+    }
+  });
+
+  document.querySelectorAll(".sidebar-group-toggle").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var group = btn.closest(".sidebar-group");
+      var isCollapsed = group.classList.toggle("collapsed");
+      btn.setAttribute("aria-expanded", isCollapsed ? "false" : "true");
+
+      // Persist state
+      var state = getCollapsedGroups();
+      state[btn.textContent.trim()] = isCollapsed;
+      saveCollapsedGroups(state);
+    });
+  });
 });
 
 // API Playground

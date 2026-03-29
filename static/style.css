@@ -332,7 +332,40 @@ pre code {
     font-weight: 500;
 }
 
-.sidebar-group { margin-bottom: 1.5rem; }
+.sidebar-group { margin-bottom: 0.5rem; }
+
+.sidebar-group-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.5rem 0.75rem 0.25rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    font-family: inherit;
+    transition: color 0.2s;
+}
+
+.sidebar-group-toggle:hover { color: var(--text-secondary); }
+
+.sidebar-chevron {
+    transition: transform 0.2s;
+    flex-shrink: 0;
+}
+
+.sidebar-group.collapsed .sidebar-chevron {
+    transform: rotate(-90deg);
+}
+
+.sidebar-group.collapsed .sidebar-group-items {
+    display: none;
+}
 
 .sidebar-group-title {
     font-size: 0.75rem;
