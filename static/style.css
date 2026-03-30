@@ -1419,3 +1419,52 @@ pre.shiki .line.highlighted {
 .code-copy-btn:hover {
     color: var(--text);
 }
+
+/* --- API Usage Example Dropdown --- */
+.api-examples-interactive {
+  margin: 1.5rem 0;
+  background: var(--code-bg);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1rem;
+}
+.api-examples-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+.example-lang-select {
+  font-size: 1rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text);
+}
+.api-example-code pre {
+  margin: 0;
+  border-radius: var(--radius);
+  background: var(--code-bg);
+  overflow-x: auto;
+  font-size: 0.98rem;
+  padding: 1rem;
+    /* Custom scrollbar for code blocks */
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent) var(--code-bg);
+}
+
+.api-example-code pre::-webkit-scrollbar {
+    height: 8px;
+    background: var(--code-bg);
+    border-radius: 8px;
+}
+
+.api-example-code pre::-webkit-scrollbar-thumb {
+    background: var(--accent);
+    border-radius: 8px;
+}
+
+.api-example-code pre::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-hover);
+}

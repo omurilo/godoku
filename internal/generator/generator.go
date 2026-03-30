@@ -698,20 +698,46 @@ func (g *Generator) buildSingleAPI(tmpl *template.Template, doc *openapi.APIDoc,
 			Content:     endpoint.Description,
 		})
 
+		serverURL := ""
+		if len(doc.Servers) > 0 {
+			serverURL = doc.Servers[0].URL
+		}
+
+		contentType := ""
+		if endpoint.RequestBody != nil {
+			for ct := range endpoint.RequestBody.Content {
+				contentType = ct
+				break
+			}
+		}
+
+		curlExample := APIExample(LangCurl, serverURL, endpoint, contentType)
+		goExample := APIExample(LangGo, serverURL, endpoint, contentType)
+		pythonExample := APIExample(LangPython, serverURL, endpoint, contentType)
+		jsExample := APIExample(LangJS, serverURL, endpoint, contentType)
+
 		epData := struct {
-			Config     config.Config
-			Endpoint   openapi.Endpoint
-			TagGroups  map[string][]openapi.Endpoint
-			ActiveSlug string
-			BasePath   string
-			Servers    []openapi.Server
+			Config        config.Config
+			Endpoint      openapi.Endpoint
+			TagGroups     map[string][]openapi.Endpoint
+			ActiveSlug    string
+			BasePath      string
+			Servers       []openapi.Server
+			CurlExample   string
+			GoExample     string
+			PythonExample string
+			JSExample     string
 		}{
-			Config:     g.Config,
-			Endpoint:   endpoint,
-			TagGroups:  doc.TagGroups,
-			ActiveSlug: endpoint.Slug,
-			BasePath:   basePath,
-			Servers:    doc.Servers,
+			Config:        g.Config,
+			Endpoint:      endpoint,
+			TagGroups:     doc.TagGroups,
+			ActiveSlug:    endpoint.Slug,
+			BasePath:      basePath,
+			Servers:       doc.Servers,
+			CurlExample:   curlExample,
+			GoExample:     goExample,
+			PythonExample: pythonExample,
+			JSExample:     jsExample,
 		}
 
 		html, err := g.renderPage(tmpl, "api_endpoint", epData, pageMeta{

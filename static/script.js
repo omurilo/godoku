@@ -1,5 +1,24 @@
+function updateExampleVisibility(lang) {
+  var ids = ["curl", "go", "python", "js"];
+  ids.forEach(function(id) {
+    var el = document.getElementById("example-"+id);
+    if (el) el.style.display = (id === lang) ? "block" : "none";
+  });
+}
+
+window.showApiExample = function(sel) {
+  var lang = sel.value;
+  if (typeof processCodeBlocks === "function") {
+    var visible = document.querySelector("#example-"+lang+" code");
+    if (visible) processCodeBlocks([visible]);
+  }
+  setTimeout(function() { updateExampleVisibility(lang); }, 0);
+}
 // Godoku - client-side enhancements
 document.addEventListener("DOMContentLoaded", function () {
+    setTimeout(function() {
+      updateExampleVisibility("curl");
+    }, 0);
   // Theme toggle (desktop + mobile)
   function handleThemeToggle() {
     var current = document.documentElement.getAttribute("data-theme");
@@ -125,6 +144,8 @@ document.addEventListener("DOMContentLoaded", function () {
   }).catch(function (err) {
     console.warn("Shiki failed, using plain code blocks:", err);
     addCopyButtons();
+  }).finally(function () {
+    updateExampleVisibility("curl");
   });
 });
 
@@ -222,11 +243,12 @@ function processCodeBlocks(codeBlocks) {
     var highlightLines = parseHighlightRanges(highlightStr);
     var showLineNumbers = pre.hasAttribute("data-line-numbers");
 
-    // Save data attrs before replacing
+    // Save data attrs and id before replacing
     var savedAttrs = {};
     if (pre.dataset.highlight) savedAttrs.highlight = pre.dataset.highlight;
     if (pre.dataset.lineNumbers) savedAttrs.lineNumbers = pre.dataset.lineNumbers;
     if (pre.dataset.lang) savedAttrs.lang = pre.dataset.lang;
+    if (pre.id) savedAttrs.id = pre.id;
 
     try {
       var html = shikiHighlighter.codeToHtml(code, {
@@ -256,10 +278,11 @@ function processCodeBlocks(codeBlocks) {
         });
       }
 
-      // Restore data attributes
+      // Restore data attributes and id
       if (savedAttrs.highlight) newPre.dataset.highlight = savedAttrs.highlight;
       if (savedAttrs.lineNumbers) newPre.dataset.lineNumbers = savedAttrs.lineNumbers;
       if (savedAttrs.lang) newPre.dataset.lang = savedAttrs.lang;
+      if (savedAttrs.id) newPre.id = savedAttrs.id;
       newPre.dataset.shiki = "true";
       newPre.dataset.originalCode = code;
 

@@ -157,6 +157,30 @@
                 </div>
             </div>
         </section>
+        {{/* --- API Usage Examples --- */}}
+        <section class="api-section">
+            <h2>Exemplos de Uso</h2>
+            <div class="api-examples-interactive">
+                <div class="api-examples-header">
+                    <label for="example-lang-select">Mostrar exemplo em:</label>
+                    <select id="example-lang-select" class="example-lang-select" onchange="showApiExample(this)">
+                        <option value="curl">cURL</option>
+                        <option value="go">Go</option>
+                        <option value="python">Python</option>
+                        <option value="js">JavaScript</option>
+                    </select>
+                </div>
+                <div class="api-example-code">
+                    <pre data-lang="bash" id="example-curl" class="example-code-block language-bash"><code class="language-bash">{{.CurlExample}}</code></pre>
+
+                    <pre data-lang="go" id="example-go" class="example-code-block language-go"><code class="language-go">{{.GoExample}}</code></pre>
+
+                    <pre data-lang="python" id="example-python" class="example-code-block language-python"><code class="language-python">{{.PythonExample}}</code></pre>
+
+                    <pre data-lang="js" id="example-js" class="example-code-block language-js"><code class="language-js">{{.JSExample}}</code></pre>
+                </div>
+            </div>
+        </section>
     </article>
 </div>
 
