@@ -1,4 +1,9 @@
 function updateExampleVisibility(lang) {
+  if (!lang) {
+    var sel = document.querySelector(".example-lang-select");
+    if (sel) lang = sel.value;
+  }
+
   var ids = ["curl", "go", "python", "js"];
   ids.forEach(function(id) {
     var el = document.getElementById("example-"+id);
@@ -307,6 +312,7 @@ function updateShikiTheme(themeMode) {
   }
   if (codeBlocks.length === 0) return;
   processCodeBlocks(codeBlocks);
+  updateExampleVisibility();
 }
 
 function addCopyButtons() {

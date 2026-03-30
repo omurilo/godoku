@@ -45,7 +45,11 @@ func CurlExample(server string, endpoint openapi.Endpoint, contentType string) s
 		for ct, media := range endpoint.RequestBody.Content {
 			if ct == contentType || contentType == "" {
 				example := openapi.GenerateExampleObject(media.Schema)
-				if strings.HasPrefix(strings.TrimSpace(example), "[") {
+				example = strings.TrimSpace(example)
+				example = strings.ReplaceAll(example, "\r", "")
+				example = indentString(example, "  ")
+
+				if strings.HasPrefix(example, "[") {
 					body = fmt.Sprintf("  --data '%s' \\", example)
 				} else {
 					body = fmt.Sprintf("  --data '%s' \\", strings.ReplaceAll(example, "'", "\\'"))
@@ -77,6 +81,11 @@ func GoExample(server string, endpoint openapi.Endpoint, contentType string) str
 		for ct, media := range endpoint.RequestBody.Content {
 			if ct == contentType || contentType == "" {
 				example := openapi.GenerateExampleObject(media.Schema)
+
+				example = strings.TrimSpace(example)
+				example = strings.ReplaceAll(example, "\r", "")
+				example = indentString(example, "\t")
+
 				body = fmt.Sprintf("strings.NewReader(`%s`)", example)
 				break
 			}
@@ -96,20 +105,27 @@ import (
 )
 
 func main() {
-	req, err := http.NewRequest("%s", "%s", %s)
+	url := "%s"
+
+	payload := %s
+
+	req, err := http.NewRequest("%s", url, payload)
 	if err != nil {
 		panic(err)
 	}
+
 %s
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		panic(err)
 	}
 	defer resp.Body.Close()
+	
 	body, _ := io.ReadAll(resp.Body)
 	fmt.Println(string(body))
 }
-`, endpoint.Method, url, body, strings.Join(headerLines, "\n"))
+`, url, body, endpoint.Method, strings.Join(headerLines, "\n"))
 }
 
 func PythonExample(server string, endpoint openapi.Endpoint, contentType string) string {
@@ -129,7 +145,10 @@ func PythonExample(server string, endpoint openapi.Endpoint, contentType string)
 		for ct, media := range endpoint.RequestBody.Content {
 			if ct == contentType || contentType == "" {
 				example := openapi.GenerateExampleObject(media.Schema)
-				if strings.HasPrefix(strings.TrimSpace(example), "[") {
+				example = strings.TrimSpace(example)
+				example = strings.ReplaceAll(example, "\r", "")
+
+				if strings.HasPrefix(example, "[") {
 					body = example
 				} else {
 					body = fmt.Sprintf("'''%s'''", example)
@@ -169,16 +188,21 @@ func JSExample(server string, endpoint openapi.Endpoint, contentType string) str
 	headersStr := "{}"
 	if len(headerLines) > 0 {
 		headersStr = fmt.Sprintf("{\n%s\n}", strings.Join(headerLines, ",\n"))
+		headersStr = indentString(headersStr, "\t")
 	}
 	body := ""
 	if endpoint.RequestBody != nil {
 		for ct, media := range endpoint.RequestBody.Content {
 			if ct == contentType || contentType == "" {
 				example := openapi.GenerateExampleObject(media.Schema)
-				if strings.HasPrefix(strings.TrimSpace(example), "[") {
-					body = fmt.Sprintf(",\n    body: %s", example)
+				example = strings.TrimSpace(example)
+				example = strings.ReplaceAll(example, "\r", "")
+				example = indentString(example, "\t")
+
+				if strings.HasPrefix(example, "[") {
+					body = fmt.Sprintf(",\n\tbody: %s", example)
 				} else {
-					body = fmt.Sprintf(",\n    body: `%s`", example)
+					body = fmt.Sprintf(",\n\tbody: `%s`", example)
 				}
 				break
 			}
@@ -199,4 +223,12 @@ func JSExample(server string, endpoint openapi.Endpoint, contentType string) str
 }
 
 callApi().catch(console.error);`, url, endpoint.Method, headersStr, body)
+}
+
+func indentString(str string, indent string) string {
+	lines := strings.Split(str, "\n")
+	for i := 1; i < len(lines); i++ {
+		lines[i] = indent + lines[i]
+	}
+	return strings.Join(lines, "\n")
 }

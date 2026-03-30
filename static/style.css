@@ -1354,6 +1354,7 @@ pre.shiki .line {
     border-left: 3px solid transparent;
     font-size: 0.875rem;
     line-height: 1.7;
+    min-height: 0.875rem;
 }
 
 pre.shiki .line.highlighted {
