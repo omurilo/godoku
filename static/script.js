@@ -1,9 +1,23 @@
-function updateExampleVisibility(lang) {
+function updateExampleVisibility(lang, root) {
+  root = root || document;
   if (!lang) {
-    var sel = document.querySelector(".example-lang-select");
+    var sel = root.querySelector(".example-lang-select") || document.querySelector(".example-lang-select");
     if (sel) lang = sel.value;
   }
 
+  // New format: data-lang scoped within each examples block.
+  var blocks = root.querySelectorAll(".example-code-block[data-lang]");
+  if (blocks.length > 0) {
+    blocks.forEach(function(el) {
+      var isVisible = el.getAttribute("data-lang") === lang;
+      el.style.display = isVisible ? "block" : "none";
+      var wrapper = el.closest(".code-block-wrapper");
+      if (wrapper) wrapper.style.display = isVisible ? "block" : "none";
+    });
+    return;
+  }
+
+  // Backward compatibility: legacy global IDs.
   var ids = ["curl", "go", "python", "js"];
   ids.forEach(function(id) {
     var el = document.getElementById("example-"+id);
@@ -13,16 +27,24 @@ function updateExampleVisibility(lang) {
 
 window.showApiExample = function(sel) {
   var lang = sel.value;
+  var root = sel.closest(".api-examples-interactive") || document;
   if (typeof processCodeBlocks === "function") {
-    var visible = document.querySelector("#example-"+lang+" code");
+    var visible = root.querySelector('.example-code-block[data-lang="' + lang + '"] code') || document.querySelector("#example-"+lang+" code");
     if (visible) processCodeBlocks([visible]);
   }
-  setTimeout(function() { updateExampleVisibility(lang); }, 0);
+  setTimeout(function() { updateExampleVisibility(lang, root); }, 0);
 }
 // Godoku - client-side enhancements
 document.addEventListener("DOMContentLoaded", function () {
     setTimeout(function() {
-      updateExampleVisibility("curl");
+      var sections = document.querySelectorAll(".api-examples-interactive");
+      if (sections.length === 0) {
+        updateExampleVisibility("curl", document);
+      } else {
+        sections.forEach(function(section) {
+          updateExampleVisibility("curl", section);
+        });
+      }
     }, 0);
   // Theme toggle (desktop + mobile)
   function handleThemeToggle() {
@@ -73,6 +95,19 @@ document.addEventListener("DOMContentLoaded", function () {
     var toggle = group.querySelector(".sidebar-group-toggle");
     if (!toggle) return;
     var hasActive = group.querySelector(".sidebar-link.active");
+
+    if (!hasActive) {
+      var links = group.querySelectorAll(".sidebar-link");
+      links.forEach(function(link) {
+        var href = link.getAttribute("href") || "";
+        if (!href) return;
+        var current = window.location.pathname + window.location.hash;
+        if (href === current || href === window.location.pathname || (window.location.hash && href.endsWith(window.location.hash))) {
+          link.classList.add("active");
+          hasActive = true;
+        }
+      });
+    }
 
     if (!hasActive) {
       group.classList.add("collapsed");
@@ -176,6 +211,23 @@ function parseHighlightRanges(str) {
 // Shiki highlighter instance (shared)
 var shikiHighlighter = null;
 
+function normalizeShikiLang(lang) {
+  if (!lang) return "";
+  var normalized = String(lang).toLowerCase();
+  var aliases = {
+    curl: "bash",
+    shell: "bash",
+    zsh: "bash",
+    js: "javascript",
+    mjs: "javascript",
+    cjs: "javascript",
+    ts: "typescript",
+    py: "python",
+    yml: "yaml"
+  };
+  return aliases[normalized] || normalized;
+}
+
 function getShikiTheme() {
   var theme = document.documentElement.getAttribute("data-theme");
   return theme === "light" ? "github-light" : "dracula";
@@ -189,9 +241,9 @@ async function initShikiHighlighting() {
   var langs = new Set();
   codeBlocks.forEach(function (code) {
     var cls = Array.from(code.classList).find(function (c) { return c.startsWith("language-"); });
-    if (cls) langs.add(cls.replace("language-", ""));
+    if (cls) langs.add(normalizeShikiLang(cls.replace("language-", "")));
     var pre = code.parentElement;
-    if (pre && pre.dataset.lang) langs.add(pre.dataset.lang);
+    if (pre && pre.dataset.lang) langs.add(normalizeShikiLang(pre.dataset.lang));
   });
 
   var langList = Array.from(langs).filter(function (l) { return l && l !== ""; });
@@ -232,6 +284,7 @@ function processCodeBlocks(codeBlocks) {
     // Determine language
     var cls = Array.from(codeEl.classList).find(function (c) { return c.startsWith("language-"); });
     var lang = (cls ? cls.replace("language-", "") : "") || (pre.dataset.lang || "");
+    lang = normalizeShikiLang(lang);
     if (!lang || loadedLangs.indexOf(lang) === -1) lang = "text";
 
     // Use stored original code on re-renders (theme toggle) to avoid
@@ -254,6 +307,8 @@ function processCodeBlocks(codeBlocks) {
     if (pre.dataset.lineNumbers) savedAttrs.lineNumbers = pre.dataset.lineNumbers;
     if (pre.dataset.lang) savedAttrs.lang = pre.dataset.lang;
     if (pre.id) savedAttrs.id = pre.id;
+    savedAttrs.className = pre.className || "";
+    savedAttrs.display = pre.style.display || "";
 
     try {
       var html = shikiHighlighter.codeToHtml(code, {
@@ -288,6 +343,8 @@ function processCodeBlocks(codeBlocks) {
       if (savedAttrs.lineNumbers) newPre.dataset.lineNumbers = savedAttrs.lineNumbers;
       if (savedAttrs.lang) newPre.dataset.lang = savedAttrs.lang;
       if (savedAttrs.id) newPre.id = savedAttrs.id;
+      if (savedAttrs.className) newPre.className = savedAttrs.className;
+      if (savedAttrs.display) newPre.style.display = savedAttrs.display;
       newPre.dataset.shiki = "true";
       newPre.dataset.originalCode = code;
 

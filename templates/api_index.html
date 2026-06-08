@@ -1,32 +1,37 @@
-<div class="docs-layout">
+<div class="docs-layout api-layout">
     <aside class="sidebar">
         <h3 class="sidebar-title">{{.Title}}</h3>
-        {{range $tag, $endpoints := .TagGroups}}
+        {{range .TagSections}}
         <div class="sidebar-group">
             <button class="sidebar-group-toggle" aria-expanded="true">
-                <span>{{$tag}}</span>
+                <span>{{.Tag}}</span>
                 <svg class="sidebar-chevron" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4.427 7.427l3.396 3.396a.25.25 0 00.354 0l3.396-3.396A.25.25 0 0011.396 7H4.604a.25.25 0 00-.177.427z"/></svg>
             </button>
-            <ul class="sidebar-nav sidebar-group-items">
-                {{range $endpoints}}
+            <ul class="sidebar-nav sidebar-group-items api-sidebar-nav">
+            {{range .Sections}}
                 <li>
-                    <a href="{{$.BasePath}}/{{.Slug}}" class="sidebar-link {{if eq .Slug $.ActiveSlug}}active{{end}}">
-                        <span class="method-badge method-{{.Method | lower}}">{{.Method}}</span>
-                        <span class="endpoint-path">{{.Path}}</span>
+                    <a href="{{$.BasePath}}/#{{.Endpoint.Slug}}" class="sidebar-link">
+                        <span class="method-badge method-{{.Endpoint.Method | lower}}">{{.Endpoint.Method}}</span>
+                        <span class="api-sidebar-item-text">
+                            <span class="endpoint-path">{{if .Endpoint.Summary}}{{.Endpoint.Summary}}{{else}}{{.Endpoint.Path}}{{end}}</span>
+                            <span class="api-sidebar-item-path">{{.Endpoint.Path}}</span>
+                        </span>
                     </a>
                 </li>
-                {{end}}
+            {{end}}
             </ul>
         </div>
         {{end}}
     </aside>
+
     <article class="content">
         <h1>{{.Title}}</h1>
         <p>{{.Description}}</p>
         <p class="api-version">Version: {{.Version}}</p>
+
         {{if .Servers}}
         <div class="servers">
-            <h3>Servers</h3>
+            <h3>Endpoint</h3>
             {{range .Servers}}
             <div class="server-item">
                 <code>{{.URL}}</code>
@@ -35,15 +40,218 @@
             {{end}}
         </div>
         {{end}}
-        <div class="endpoints-overview">
-            <h2>Endpoints</h2>
-            {{range .Endpoints}}
-            <a href="{{$.BasePath}}/{{.Slug}}" class="endpoint-card">
-                <span class="method-badge method-{{.Method | lower}}">{{.Method}}</span>
-                <span class="endpoint-path">{{.Path}}</span>
-                {{if .Summary}}<span class="endpoint-summary">{{.Summary}}</span>{{end}}
-            </a>
-            {{end}}
-        </div>
+
+        {{range .TagSections}}
+        <section class="api-tag-section">
+            <h2 class="api-tag-title">{{.Tag}}</h2>
+        {{range .Sections}}
+        <section id="{{.Endpoint.Slug}}" class="api-operation">
+            <div class="api-operation-grid">
+                <div class="api-operation-main">
+                    <div class="endpoint-header">
+                        <span class="method-badge method-{{.Endpoint.Method | lower}} large">{{.Endpoint.Method}}</span>
+                        <h2 class="endpoint-title">
+                            <a href="#{{.Endpoint.Slug}}" class="endpoint-anchor">#</a>
+                            {{if .Endpoint.Summary}}{{.Endpoint.Summary}}{{else}}{{.Endpoint.Path}}{{end}}
+                        </h2>
+                    </div>
+
+                    <p class="endpoint-summary-text">
+                        <code>{{.Endpoint.Path}}</code>
+                    </p>
+
+                    {{if .Endpoint.Description}}<div class="endpoint-description">{{.Endpoint.Description}}</div>{{end}}
+
+                    {{if .Endpoint.Parameters}}
+                    <section class="api-section">
+                        <h3>Parameters</h3>
+                        <table class="params-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>In</th>
+                                    <th>Type</th>
+                                    <th>Required</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {{range .Endpoint.Parameters}}
+                                <tr>
+                                    <td><code>{{.Name}}</code></td>
+                                    <td><span class="param-in">{{.In}}</span></td>
+                                    <td>{{if .Schema}}{{.Schema.TypeString}}{{end}}</td>
+                                    <td>{{if .Required}}<span class="required">Yes</span>{{else}}No{{end}}</td>
+                                    <td>{{.Description}}</td>
+                                </tr>
+                                {{end}}
+                            </tbody>
+                        </table>
+                    </section>
+                    {{end}}
+
+                    {{if .Endpoint.RequestBody}}
+                    <section class="api-section">
+                        <h3>Request Body</h3>
+                        {{if .Endpoint.RequestBody.Description}}<p>{{.Endpoint.RequestBody.Description}}</p>{{end}}
+                        {{if .Endpoint.RequestBody.Required}}<p class="required">Required</p>{{end}}
+                        {{range $contentType, $media := .Endpoint.RequestBody.Content}}
+                        <div class="media-type">
+                            <h4>{{$contentType}}</h4>
+                            {{if $media.Schema}}
+                            {{template "schema" $media.Schema}}
+                            {{end}}
+                        </div>
+                        {{end}}
+                    </section>
+                    {{end}}
+
+                    {{if .Endpoint.Responses}}
+                    <section class="api-section">
+                        <h3>Responses</h3>
+                        {{range $code, $resp := .Endpoint.Responses}}
+                        <div class="response-item">
+                            <div class="response-header">
+                                <span class="status-code status-{{statusClass $code}}">{{$code}}</span>
+                                <span class="response-desc">{{$resp.Description}}</span>
+                            </div>
+                            {{range $contentType, $media := $resp.Content}}
+                            <div class="media-type">
+                                <h4>{{$contentType}}</h4>
+                                {{if $media.Schema}}
+                                {{template "schema" $media.Schema}}
+                                {{end}}
+                            </div>
+                            {{end}}
+                        </div>
+                        {{end}}
+                    </section>
+                    {{end}}
+                </div>
+
+                <aside class="api-operation-rail">
+                    <section class="api-section playground-section">
+                        <h3>Test</h3>
+                        <div class="playground" data-method="{{.Endpoint.Method}}" data-path="{{.Endpoint.Path}}">
+                    {{if $.Servers}}
+                    <div class="playground-field">
+                        <label>Server</label>
+                        <select class="playground-input playground-server">
+                            {{range $.Servers}}
+                            <option value="{{.URL}}">{{.URL}}{{if .Description}} — {{.Description}}{{end}}</option>
+                            {{end}}
+                        </select>
+                    </div>
+                    {{end}}
+
+                    {{range .Endpoint.Parameters}}
+                    <div class="playground-field">
+                        <label>
+                            <code>{{.Name}}</code>
+                            <span class="param-in">{{.In}}</span>
+                            {{if .Required}}<span class="required">*</span>{{end}}
+                        </label>
+                        <input type="text" class="playground-input playground-param"
+                               data-name="{{.Name}}"
+                               data-in="{{.In}}"
+                               data-required="{{.Required}}"
+                               placeholder="{{if .Schema}}{{.Schema.TypeString}}{{end}}{{if .Description}} — {{.Description}}{{end}}">
+                    </div>
+                    {{end}}
+
+                    {{if .Endpoint.RequestBody}}
+                    <div class="playground-field">
+                        <label>Request Body</label>
+                        <textarea class="playground-input playground-body" rows="6" placeholder='{"key": "value"}'></textarea>
+                    </div>
+                    {{end}}
+
+                    <div class="playground-field">
+                        <label>Headers <span class="text-muted">(optional, one per line: Header: Value)</span></label>
+                        <textarea class="playground-input playground-headers" rows="3" placeholder="Authorization: Bearer token&#10;Content-Type: application/json"></textarea>
+                    </div>
+
+                    <button class="playground-send" onclick="sendPlaygroundRequest(this)">
+                        <span class="method-badge method-{{.Endpoint.Method | lower}}">{{.Endpoint.Method}}</span>
+                        Send Request
+                    </button>
+
+                    <div class="playground-result" style="display: none;">
+                        <div class="playground-result-header">
+                            <span class="playground-status"></span>
+                            <span class="playground-time"></span>
+                        </div>
+                        <div class="playground-response-headers">
+                            <h4>Response Headers</h4>
+                            <pre class="playground-response-headers-content"></pre>
+                        </div>
+                        <div class="playground-response-body">
+                            <h4>Response Body</h4>
+                            <pre class="playground-response-body-content"></pre>
+                        </div>
+                    </div>
+                </div>
+                    </section>
+
+                    <section class="api-section">
+                        <h3>Examples</h3>
+                        <div class="api-examples-interactive">
+                            <div class="api-examples-header">
+                                <label for="example-lang-select-{{.Endpoint.Slug}}">Show example in:</label>
+                                <select id="example-lang-select-{{.Endpoint.Slug}}" class="example-lang-select" onchange="showApiExample(this)">
+                                    <option value="curl">cURL</option>
+                                    <option value="go">Go</option>
+                                    <option value="python">Python</option>
+                                    <option value="js">JavaScript</option>
+                                </select>
+                            </div>
+                            <div class="api-example-code">
+                                <pre data-lang="curl" class="example-code-block language-bash"><code class="language-bash">{{.CurlExample}}</code></pre>
+                                <pre data-lang="go" class="example-code-block language-go"><code class="language-go">{{.GoExample}}</code></pre>
+                                <pre data-lang="python" class="example-code-block language-python"><code class="language-python">{{.PythonExample}}</code></pre>
+                                <pre data-lang="js" class="example-code-block language-js"><code class="language-js">{{.JSExample}}</code></pre>
+                            </div>
+                        </div>
+                    </section>
+                </aside>
+            </div>
+        </section>
+        {{end}}
+        </section>
+        {{end}}
     </article>
 </div>
+
+{{define "schema"}}
+<div class="schema">
+    {{if .Ref}}<code class="schema-ref">{{.TypeString}}</code>{{end}}
+    {{if .Type}}<span class="schema-type">{{.TypeString}}</span>{{end}}
+    {{if .Description}}<p class="schema-desc">{{.Description}}</p>{{end}}
+    {{if .Properties}}
+    <table class="schema-table">
+        <thead>
+            <tr>
+                <th>Property</th>
+                <th>Type</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range $name, $prop := .Properties}}
+            <tr>
+                <td><code>{{$name}}</code></td>
+                <td>{{$prop.TypeString}}</td>
+                <td>{{$prop.Description}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{end}}
+    {{if and (eq .Type "array") .Items}}
+    <div class="array-items">
+        <span>Items: </span>
+        {{template "schema" .Items}}
+    </div>
+    {{end}}
+</div>
+{{end}}

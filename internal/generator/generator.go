@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/omurilo/godoku/internal/config"
@@ -19,10 +20,12 @@ import (
 
 var templatesFS embed.FS
 var staticFS embed.FS
+var appFS embed.FS
 
-func SetEmbedFS(templates, static embed.FS) {
+func SetEmbedFS(templates, static, app embed.FS) {
 	templatesFS = templates
 	staticFS = static
+	appFS = app
 }
 
 type Generator struct {
@@ -35,6 +38,8 @@ type Generator struct {
 	llmsEntries  []llmsEntry
 	hasCustomCSS bool
 	hasCustomJS  bool
+	appDir       string // temp dir where the embedded React shell is materialized
+	mdxActive    bool   // true once the MDX/React pipeline rendered pages this build
 }
 
 type searchEntry struct {
@@ -80,97 +85,18 @@ func (g *Generator) Build() error {
 		return fmt.Errorf("building index: %w", err)
 	}
 
-	// --- Custom: Process root-level markdown files in content/ ---
-	rootContentDir := filepath.Join(g.RootDir, "content")
-	entries, err := os.ReadDir(rootContentDir)
-	if err == nil {
-		tmpl, tmplErr := g.loadTemplates()
-		if tmplErr != nil {
-			return fmt.Errorf("loading templates for root content: %w", tmplErr)
-		}
-		for _, entry := range entries {
-			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") || entry.Name() == "_index.md" {
-				continue
-			}
-			page, perr := content.ParseMarkdownFile(filepath.Join(rootContentDir, entry.Name()))
-			if perr != nil || page.Draft {
-				continue
-			}
-			// Determine output path
-			var outPath, urlPath string
-			if entry.Name() == "index.md" {
-				outPath = filepath.Join(g.OutDir, "index.html")
-				urlPath = "/"
-			} else {
-				outPath = filepath.Join(g.OutDir, page.Slug, "index.html")
-				urlPath = "/" + page.Slug + "/"
-			}
-			html, rerr := g.renderPage(tmpl, "section", struct {
-				Config       config.Config
-				SectionTitle string
-				Groups       []content.PageGroup
-				RootPages    []content.Page
-				AllPages     []content.Page
-				ActiveSlug   string
-				ActivePage   *content.Page
-				PrevPage     *content.Page
-				NextPage     *content.Page
-				EditURL      string
-			}{
-				Config:       g.Config,
-				SectionTitle: "",
-				Groups:       nil,
-				RootPages:    []content.Page{page},
-				AllPages:     []content.Page{page},
-				ActiveSlug:   page.Slug,
-				ActivePage:   &page,
-				PrevPage:     nil,
-				NextPage:     nil,
-				EditURL:      "",
-			}, pageMeta{
-				Title:       page.Title,
-				Description: page.Description,
-				Path:        urlPath,
-			})
-			if rerr != nil {
-				return fmt.Errorf("rendering root content page %s: %w", entry.Name(), rerr)
-			}
-			if werr := g.writePage(outPath, html); werr != nil {
-				return fmt.Errorf("writing root content page %s: %w", entry.Name(), werr)
-			}
-			// Add to sitemap and search index
-			g.sitemapURLs = append(g.sitemapURLs, urlPath)
-			g.searchIndex = append(g.searchIndex, searchEntry{
-				Title:       page.Title,
-				Description: page.Description,
-				Section:     "",
-				URL:         urlPath,
-				Content:     stripHTML(page.Content),
-			})
-		}
-	}
-
-	sections := map[string]string{
-		"docs":      g.Config.Sections.Docs,
-		"guides":    g.Config.Sections.Guides,
-		"tutorials": g.Config.Sections.Tutorials,
-	}
-
-	for section, dir := range sections {
-		contentDir := dir
-		if !filepath.IsAbs(contentDir) {
-			contentDir = filepath.Join(g.RootDir, contentDir)
-		}
-		if err := g.buildSection(section, contentDir); err != nil {
-			return fmt.Errorf("building section %s: %w", section, err)
-		}
-	}
-
 	apiFiles := openapi.DiscoverAPIs(g.RootDir)
 	if len(apiFiles) > 0 {
 		if err := g.buildAPI(apiFiles); err != nil {
 			return fmt.Errorf("building API docs: %w", err)
 		}
+	}
+
+	// All section content (docs/guides/tutorials, .md and .mdx alike) is rendered
+	// through the React/esbuild/sobek MDX pipeline. This is a no-op (and touches
+	// no network) when the project contains no section content.
+	if err := g.buildMDXPages(); err != nil {
+		return fmt.Errorf("building mdx pages: %w", err)
 	}
 
 	if err := g.buildSitemap(); err != nil {
@@ -394,47 +320,16 @@ func (g *Generator) buildIndex() error {
 		return g.writePage(filepath.Join(g.OutDir, "index.html"), redirectHTML)
 	}
 
-	// If content/index.md exists, render it as /index.html
+	// content/index.md is rendered through the MDX/React pipeline (buildMDXPages),
+	// not here, so it gets the same shell as every other page. Skip the default
+	// homepage when it exists.
 	indexMdPath := filepath.Join(g.RootDir, "content", "index.md")
 	if _, err := os.Stat(indexMdPath); err == nil {
-		page, perr := content.ParseMarkdownFile(indexMdPath)
-		if perr == nil && !page.Draft {
-			tmpl, tmplErr := g.loadTemplates()
-			if tmplErr != nil {
-				return tmplErr
-			}
-			html, rerr := g.renderPage(tmpl, "section", struct {
-				Config       config.Config
-				SectionTitle string
-				Groups       []content.PageGroup
-				RootPages    []content.Page
-				AllPages     []content.Page
-				ActiveSlug   string
-				ActivePage   *content.Page
-				PrevPage     *content.Page
-				NextPage     *content.Page
-				EditURL      string
-			}{
-				Config:       g.Config,
-				SectionTitle: "",
-				Groups:       nil,
-				RootPages:    []content.Page{page},
-				AllPages:     []content.Page{page},
-				ActiveSlug:   page.Slug,
-				ActivePage:   &page,
-				PrevPage:     nil,
-				NextPage:     nil,
-				EditURL:      "",
-			}, pageMeta{
-				Title:       page.Title,
-				Description: page.Description,
-				Path:        "/",
-			})
-			if rerr != nil {
-				return rerr
-			}
-			return g.writePage(filepath.Join(g.OutDir, "index.html"), html)
-		}
+		return nil
+	}
+	indexMdxPath := filepath.Join(g.RootDir, "content", "index.mdx")
+	if _, err := os.Stat(indexMdxPath); err == nil {
+		return nil
 	}
 
 	// Otherwise, use the default homepage
@@ -652,6 +547,74 @@ func (g *Generator) buildAPI(apiFiles []string) error {
 }
 
 func (g *Generator) buildSingleAPI(tmpl *template.Template, doc *openapi.APIDoc, outDir string, basePath string) error {
+	type apiEndpointSection struct {
+		Endpoint        openapi.Endpoint
+		CurlExample     string
+		GoExample       string
+		PythonExample   string
+		JSExample       string
+		RequestMimeType string
+	}
+	type apiTagSection struct {
+		Tag      string
+		Sections []apiEndpointSection
+	}
+
+	sections := make([]apiEndpointSection, 0, len(doc.Endpoints))
+	serverURL := ""
+	if len(doc.Servers) > 0 {
+		serverURL = doc.Servers[0].URL
+	}
+	for _, endpoint := range doc.Endpoints {
+		contentType := ""
+		if endpoint.RequestBody != nil {
+			for ct := range endpoint.RequestBody.Content {
+				contentType = ct
+				break
+			}
+		}
+
+		sections = append(sections, apiEndpointSection{
+			Endpoint:        endpoint,
+			CurlExample:     APIExample(LangCurl, serverURL, endpoint, contentType),
+			GoExample:       APIExample(LangGo, serverURL, endpoint, contentType),
+			PythonExample:   APIExample(LangPython, serverURL, endpoint, contentType),
+			JSExample:       APIExample(LangJS, serverURL, endpoint, contentType),
+			RequestMimeType: contentType,
+		})
+	}
+
+	sectionsByTag := make(map[string][]apiEndpointSection)
+	for i, endpoint := range doc.Endpoints {
+		tag := "default"
+		if len(endpoint.Tags) > 0 && strings.TrimSpace(endpoint.Tags[0]) != "" {
+			tag = endpoint.Tags[0]
+		}
+		sectionsByTag[tag] = append(sectionsByTag[tag], sections[i])
+	}
+
+	tagSections := make([]apiTagSection, 0, len(sectionsByTag))
+	usedTags := make(map[string]bool)
+	for _, tag := range doc.Tags {
+		group, ok := sectionsByTag[tag.Name]
+		if !ok || len(group) == 0 {
+			continue
+		}
+		tagSections = append(tagSections, apiTagSection{Tag: tag.Name, Sections: group})
+		usedTags[tag.Name] = true
+	}
+
+	extraTags := make([]string, 0)
+	for tag := range sectionsByTag {
+		if !usedTags[tag] {
+			extraTags = append(extraTags, tag)
+		}
+	}
+	sort.Strings(extraTags)
+	for _, tag := range extraTags {
+		tagSections = append(tagSections, apiTagSection{Tag: tag, Sections: sectionsByTag[tag]})
+	}
+
 	indexData := struct {
 		Config      config.Config
 		Title       string
@@ -660,6 +623,8 @@ func (g *Generator) buildSingleAPI(tmpl *template.Template, doc *openapi.APIDoc,
 		Servers     []openapi.Server
 		Tags        []openapi.Tag
 		Endpoints   []openapi.Endpoint
+		Sections    []apiEndpointSection
+		TagSections []apiTagSection
 		TagGroups   map[string][]openapi.Endpoint
 		ActiveSlug  string
 		BasePath    string
@@ -671,6 +636,8 @@ func (g *Generator) buildSingleAPI(tmpl *template.Template, doc *openapi.APIDoc,
 		Servers:     doc.Servers,
 		Tags:        doc.Tags,
 		Endpoints:   doc.Endpoints,
+		Sections:    sections,
+		TagSections: tagSections,
 		TagGroups:   doc.TagGroups,
 		BasePath:    basePath,
 	}
@@ -694,62 +661,28 @@ func (g *Generator) buildSingleAPI(tmpl *template.Template, doc *openapi.APIDoc,
 			Title:       endpoint.Method + " " + endpoint.Path,
 			Description: endpoint.Summary,
 			Section:     "API",
-			URL:         basePath + "/" + endpoint.Slug + "/",
+			URL:         basePath + "/#" + endpoint.Slug,
 			Content:     endpoint.Description,
 		})
 
-		serverURL := ""
-		if len(doc.Servers) > 0 {
-			serverURL = doc.Servers[0].URL
-		}
+		// Legacy endpoint pages now redirect to the consolidated API reference page
+		// with an operation anchor, preserving old links while using the new UX.
+		target := basePath + "/#" + endpoint.Slug
+		redirectHTML := fmt.Sprintf(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="refresh" content="0;url=%s">
+  <link rel="canonical" href="%s">
+  <script>location.replace(%q);</script>
+  <title>Redirecting...</title>
+</head>
+<body>
+  <p>Redirecting to <a href="%s">%s</a>...</p>
+</body>
+</html>`, target, target, target, target, target)
 
-		contentType := ""
-		if endpoint.RequestBody != nil {
-			for ct := range endpoint.RequestBody.Content {
-				contentType = ct
-				break
-			}
-		}
-
-		curlExample := APIExample(LangCurl, serverURL, endpoint, contentType)
-		goExample := APIExample(LangGo, serverURL, endpoint, contentType)
-		pythonExample := APIExample(LangPython, serverURL, endpoint, contentType)
-		jsExample := APIExample(LangJS, serverURL, endpoint, contentType)
-
-		epData := struct {
-			Config        config.Config
-			Endpoint      openapi.Endpoint
-			TagGroups     map[string][]openapi.Endpoint
-			ActiveSlug    string
-			BasePath      string
-			Servers       []openapi.Server
-			CurlExample   string
-			GoExample     string
-			PythonExample string
-			JSExample     string
-		}{
-			Config:        g.Config,
-			Endpoint:      endpoint,
-			TagGroups:     doc.TagGroups,
-			ActiveSlug:    endpoint.Slug,
-			BasePath:      basePath,
-			Servers:       doc.Servers,
-			CurlExample:   curlExample,
-			GoExample:     goExample,
-			PythonExample: pythonExample,
-			JSExample:     jsExample,
-		}
-
-		html, err := g.renderPage(tmpl, "api_endpoint", epData, pageMeta{
-			Title:       endpoint.Method + " " + endpoint.Path,
-			Description: endpoint.Summary,
-			Path:        basePath + "/" + endpoint.Slug + "/",
-		})
-		if err != nil {
-			return err
-		}
-
-		if err := g.writePage(filepath.Join(outDir, endpoint.Slug, "index.html"), html); err != nil {
+		if err := g.writePage(filepath.Join(outDir, endpoint.Slug, "index.html"), redirectHTML); err != nil {
 			return err
 		}
 	}
@@ -805,6 +738,11 @@ func (g *Generator) buildSearchIndex() error {
 }
 
 func (g *Generator) build404() error {
+	// When the MDX/React pipeline ran, it already rendered 404.html via the shell.
+	if g.mdxActive {
+		return nil
+	}
+
 	tmpl, err := g.loadTemplates()
 	if err != nil {
 		return err

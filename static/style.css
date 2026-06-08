@@ -373,6 +373,25 @@ pre code {
 
 .sidebar-nav li { margin-bottom: 2px; }
 
+.api-sidebar-nav .sidebar-link {
+    align-items: flex-start;
+}
+
+.api-sidebar-item-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.api-sidebar-item-path {
+    font-family: monospace;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .sidebar-link {
     display: flex;
     align-items: center;
@@ -605,17 +624,25 @@ pre code {
 .method-head { background: rgba(139, 148, 158, 0.15); color: var(--text-secondary); }
 
 .endpoint-path {
-    font-family: monospace;
     font-size: 0.8rem;
     color: var(--text-secondary);
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
 }
 
 /* Endpoint Page */
 .endpoint-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
-.endpoint-title { margin-bottom: 0 !important; font-family: monospace; }
+.endpoint-title {
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-family: inherit;
+    line-height: 1.2;
+}
 .endpoint-summary-text { font-size: 1.1rem; color: var(--text-secondary); margin-bottom: 1rem; }
 .endpoint-description { color: var(--text-secondary); margin-bottom: 1.5rem; }
 
@@ -978,6 +1005,101 @@ pre code {
 
 .playground-field {
     margin-bottom: 1rem;
+}
+
+/* API redesign layout */
+.api-layout .content {
+    max-width: 900px;
+}
+
+.api-version {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.servers {
+    margin: 1.5rem 0;
+}
+
+.server-item {
+    padding: 0.5rem 0;
+    color: var(--text-secondary);
+}
+
+.api-layout .sidebar-group {
+    margin-bottom: 0.5rem;
+}
+
+.api-tag-section {
+    margin-top: 2rem;
+}
+
+.api-tag-title {
+    margin: 1rem 0 0.25rem;
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    border: 0;
+    padding-top: 0;
+}
+
+.api-operation {
+    margin: 2.25rem 0;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border);
+}
+
+.api-operation-grid {
+    display: block;
+}
+
+.api-operation-main {
+    min-width: 0;
+}
+
+.api-operation-rail {
+    position: static;
+}
+
+.api-operation-rail .api-section {
+    margin: 2rem 0;
+}
+
+.api-operation-rail .playground,
+.api-operation-rail .api-examples-interactive {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+}
+
+.endpoint-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-family: inherit;
+    line-height: 1.2;
+}
+
+.endpoint-anchor {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    line-height: 1;
+}
+
+.endpoint-anchor:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+@media (max-width: 1100px) {
+    .api-operation-rail {
+        position: static;
+    }
 }
 
 .playground-field label {
@@ -1423,49 +1545,25 @@ pre.shiki .line.highlighted {
 
 /* --- API Usage Example Dropdown --- */
 .api-examples-interactive {
-  margin: 1.5rem 0;
-  background: var(--code-bg);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 1rem;
+    margin: 0;
+        padding: 0;
+        background: transparent;
+        border: 0;
+        box-shadow: none;
 }
+
 .api-examples-header {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.5rem;
 }
+
 .example-lang-select {
-  font-size: 1rem;
-  padding: 0.2rem 0.5rem;
-  border-radius: 4px;
-  border: 1px solid var(--border);
-  background: var(--bg-secondary);
-  color: var(--text);
-}
-.api-example-code pre {
-  margin: 0;
-  border-radius: var(--radius);
-  background: var(--code-bg);
-  overflow-x: auto;
-  font-size: 0.98rem;
-  padding: 1rem;
-    /* Custom scrollbar for code blocks */
-    scrollbar-width: thin;
-    scrollbar-color: var(--accent) var(--code-bg);
-}
-
-.api-example-code pre::-webkit-scrollbar {
-    height: 8px;
-    background: var(--code-bg);
-    border-radius: 8px;
-}
-
-.api-example-code pre::-webkit-scrollbar-thumb {
-    background: var(--accent);
-    border-radius: 8px;
-}
-
-.api-example-code pre::-webkit-scrollbar-thumb:hover {
-    background: var(--accent-hover);
+        font-size: 0.9rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        border: 1px solid var(--border);
+        background: var(--bg-secondary);
+        color: var(--text);
 }
