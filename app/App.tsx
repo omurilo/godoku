@@ -6,6 +6,7 @@ import { RightColumn } from "./components/RightColumn";
 import { Catalog } from "./components/Catalog";
 import { Banner } from "./components/Banner";
 import { PageNav } from "./components/PageNav";
+import { ApiReference } from "./components/ApiReference";
 import { mdxComponents } from "./components/mdx";
 import type { AppProps } from "./types";
 
@@ -32,11 +33,13 @@ export default function App(props: AppProps) {
     banner,
     catalog,
     catalogTitle,
+    apiReference,
   } = props;
 
   const isCatalog = Array.isArray(catalog) && catalog.length > 0;
+  const isAPI = !!apiReference;
   const showSidebar = props.sidebar !== false && !isCatalog && nav.length > 0;
-  const showRight = !isCatalog && showSidebar;
+  const showRight = !isCatalog && !isAPI && showSidebar;
 
   return (
     <div className="gd-shell">
@@ -46,23 +49,27 @@ export default function App(props: AppProps) {
       <div className="gd-container">
         {showSidebar ? <Sidebar nav={nav} currentPath={path} /> : null}
 
-        <main className="gd-main">
-          <article className={cn("gd-article", isCatalog && "gd-article--wide")}>
-            {isCatalog ? (
-              <Catalog title={catalogTitle ?? title} description={description} items={catalog!} />
-            ) : (
-              <>
-                <div className="gd-prose">
-                  {Content ? (
-                    <Content components={mdxComponents} />
-                  ) : (
-                    <FallbackContent title={title} description={description} />
-                  )}
-                </div>
-                <PageNav prev={props.prev} next={props.next} />
-              </>
-            )}
-          </article>
+        <main className={cn("gd-main", isAPI && "gd-main--api")}>
+          {isAPI ? (
+            <ApiReference data={apiReference!} />
+          ) : (
+            <article className={cn("gd-article", isCatalog && "gd-article--wide")}>
+              {isCatalog ? (
+                <Catalog title={catalogTitle ?? title} description={description} items={catalog!} />
+              ) : (
+                <>
+                  <div className="gd-prose">
+                    {Content ? (
+                      <Content components={mdxComponents} />
+                    ) : (
+                      <FallbackContent title={title} description={description} />
+                    )}
+                  </div>
+                  <PageNav prev={props.prev} next={props.next} />
+                </>
+              )}
+            </article>
+          )}
         </main>
 
         {showRight ? <RightColumn toc={toc} api={api} /> : null}

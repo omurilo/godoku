@@ -6,7 +6,7 @@ require (
 	github.com/evanw/esbuild v0.28.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/grafana/sobek v0.0.0-20260603163334-74c003c83a50
-	github.com/omurilo/mdx-go v0.1.2
+	github.com/omurilo/mdx-go v0.1.3
 	github.com/yuin/goldmark v1.8.2
 	github.com/yuin/goldmark-meta v1.1.0
 	go.abhg.dev/goldmark/mermaid v0.6.0

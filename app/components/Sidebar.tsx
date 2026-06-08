@@ -10,11 +10,15 @@ function isActive(href: string | undefined, current: string | undefined): boolea
 
 function NavLeaf({ link, current }: { link: NavLink; current?: string }) {
   const active = isActive(link.href, current);
+  const methodMatch = /^\[(GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)\]\s+(.+)$/i.exec(link.label || "");
+  const method = methodMatch ? methodMatch[1].toUpperCase() : "";
+  const label = methodMatch ? methodMatch[2] : link.label;
   return (
     <a href={link.href} aria-current={active ? "page" : undefined} className="gd-nav-link">
       <span className="gd-nav-link-label">
         {link.icon ? <LucideIcon name={link.icon} size={14} /> : null}
-        {link.label}
+        {method ? <span className={cn("gd-method", "gd-method--" + method.toLowerCase(), "gd-nav-method")}>{method}</span> : null}
+        <span className="gd-nav-text">{label}</span>
       </span>
     </a>
   );

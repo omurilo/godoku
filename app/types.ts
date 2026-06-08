@@ -41,6 +41,51 @@ export interface ApiPlaygroundData {
   responses?: ApiResponse[];
 }
 
+export interface ApiReferenceParam {
+  name: string;
+  in: string;
+  required?: boolean;
+  type?: string;
+  description?: string;
+}
+
+export interface ApiReferenceResponse {
+  status: string;
+  description?: string;
+  contentTypes?: string[];
+  example?: string;
+}
+
+export interface ApiReferenceOperation {
+  slug: string;
+  method: string;
+  path: string;
+  summary: string;
+  description?: string;
+  parameters?: ApiReferenceParam[];
+  requestBody?: boolean;
+  requestBodyText?: string;
+  requestBodyExample?: string;
+  requestBodyFields?: ApiReferenceParam[];
+  requestTypes?: string[];
+  responses?: ApiReferenceResponse[];
+  examples?: Record<string, string>;
+}
+
+export interface ApiReferenceGroup {
+  name: string;
+  operations: ApiReferenceOperation[];
+}
+
+export interface ApiReferenceData {
+  title: string;
+  description?: string;
+  version?: string;
+  basePath?: string;
+  servers?: Array<{ url: string; description?: string }>;
+  groups: ApiReferenceGroup[];
+}
+
 export interface BannerData {
   message: string;
   color?: string; // info | tip | warning | danger | ""
@@ -84,6 +129,7 @@ export interface AppProps {
   topNav?: TopNavItem[];
   toc?: TocEntry[];
   api?: ApiPlaygroundData;
+  apiReference?: ApiReferenceData;
   logo?: BrandLogo;
   repoUrl?: string;
   banner?: BannerData;

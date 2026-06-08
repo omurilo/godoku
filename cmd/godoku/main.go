@@ -79,7 +79,7 @@ func cmdBuild() {
 		log.Fatalf("Build failed: %v", err)
 	}
 
-	fmt.Printf("Site built in %s -> public/\n", time.Since(start).Round(time.Millisecond))
+	fmt.Printf("Site built in %s -> dist/\n", time.Since(start).Round(time.Millisecond))
 }
 
 func cmdServe() {

@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/omurilo/godoku/internal/builder"
 	"github.com/omurilo/godoku/internal/config"
 	"github.com/omurilo/godoku/internal/content"
 	"github.com/omurilo/godoku/internal/openapi"
@@ -61,7 +62,7 @@ func New(cfg config.Config, rootDir string) *Generator {
 	return &Generator{
 		Config:  cfg,
 		RootDir: rootDir,
-		OutDir:  filepath.Join(rootDir, "public"),
+		OutDir:  filepath.Join(rootDir, "dist"),
 	}
 }
 
@@ -72,6 +73,10 @@ func (g *Generator) Build() error {
 
 	if err := g.copyStaticAssets(); err != nil {
 		return fmt.Errorf("copying static assets: %w", err)
+	}
+
+	if err := g.copyPublicAssets(); err != nil {
+		return fmt.Errorf("copying public assets: %w", err)
 	}
 
 	if err := g.copyUserStatic(); err != nil {
@@ -146,6 +151,43 @@ func (g *Generator) copyStaticAssets() error {
 			return err
 		}
 		return os.WriteFile(outPath, data, 0644)
+	})
+}
+
+// copyPublicAssets copies the user's public/ directory verbatim into the output
+// (dist/). It is additive: files there (images, CNAME, robots.txt, etc.) sit at
+// the site root and can be referenced directly from Markdown/MDX. Generated
+// pages may overwrite a colliding path.
+func (g *Generator) copyPublicAssets() error {
+	publicDir := filepath.Join(g.RootDir, "public")
+	info, err := os.Stat(publicDir)
+	if err != nil || !info.IsDir() {
+		return nil
+	}
+
+	return filepath.WalkDir(publicDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, relErr := filepath.Rel(publicDir, path)
+		if relErr != nil {
+			return relErr
+		}
+		if rel == "." {
+			return nil
+		}
+		out := filepath.Join(g.OutDir, rel)
+		if d.IsDir() {
+			return os.MkdirAll(out, 0755)
+		}
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		if mkErr := os.MkdirAll(filepath.Dir(out), 0755); mkErr != nil {
+			return mkErr
+		}
+		return os.WriteFile(out, data, 0644)
 	})
 }
 
@@ -506,39 +548,86 @@ func (g *Generator) buildAPI(apiFiles []string) error {
 		return err
 	}
 
-	tmpl, err := g.loadTemplates()
+	appDir, err := g.materializeApp()
+	if err != nil {
+		return fmt.Errorf("materializing react shell: %w", err)
+	}
+
+	customCSS := ""
+	if g.hasCustomCSS {
+		customCSS = "/static/custom.css"
+	}
+
+	b, err := builder.New(builder.Options{
+		AppDir:       appDir,
+		ReactVersion: "18.3.1",
+		CustomCSSURL: customCSS,
+	})
 	if err != nil {
 		return err
+	}
+
+	logo := buildLogo(g.Config)
+	topNav := make([]map[string]any, 0, len(g.NavItems))
+	for _, item := range g.NavItems {
+		topNav = append(topNav, map[string]any{
+			"label": item.Label,
+			"href":  pageURL(item.Path),
+		})
 	}
 
 	apiDir := filepath.Join(g.OutDir, "api")
 
 	// If only one API, render directly at /api/ (no catalog)
 	if len(docs) == 1 {
-		return g.buildSingleAPI(tmpl, docs[0], apiDir, "/api")
+		return g.buildSingleAPI(b, logo, topNav, docs[0], apiDir, "/api")
 	}
 
 	// Multiple APIs: render catalog at /api/ and each API at /api/{slug}/
-	catalogData := struct {
-		Config config.Config
-		APIs   []*openapi.APIDoc
-	}{
-		Config: g.Config,
-		APIs:   docs,
+	items := make([]map[string]any, 0, len(docs))
+	for _, doc := range docs {
+		items = append(items, map[string]any{
+			"title":       doc.Title,
+			"description": doc.Description,
+			"href":        pageURL("/api/" + doc.Slug),
+		})
 	}
 
-	html, err := g.renderPage(tmpl, "api_catalog", catalogData, pageMeta{Title: "API Reference", Path: "/api/"})
-	if err != nil {
-		return err
+	catalogProps := map[string]any{
+		"logo":         logo,
+		"topNav":       topNav,
+		"catalog":      items,
+		"catalogTitle": "API Reference",
+		"title":        "API Reference",
+		"description":  "Browse all available API specifications.",
 	}
-	if err := g.writePage(filepath.Join(apiDir, "index.html"), html); err != nil {
+	if g.Config.EditBaseURL != "" {
+		catalogProps["repoUrl"] = g.Config.EditBaseURL
+	}
+	if g.Config.Banner.Message != "" {
+		catalogProps["banner"] = map[string]any{
+			"message":     g.Config.Banner.Message,
+			"color":       g.Config.Banner.Color,
+			"dismissible": g.Config.Banner.Dismissible,
+		}
+	}
+
+	if err := b.BuildPage(builder.PageInput{
+		Source:      []byte(""),
+		OutDir:      apiDir,
+		URLPath:     "/api/",
+		AssetName:   "api-catalog",
+		Title:       "API Reference",
+		Description: "Browse all available API specifications.",
+		Props:       catalogProps,
+	}); err != nil {
 		return err
 	}
 
 	for _, doc := range docs {
 		specDir := filepath.Join(apiDir, doc.Slug)
 		basePath := "/api/" + doc.Slug
-		if err := g.buildSingleAPI(tmpl, doc, specDir, basePath); err != nil {
+		if err := g.buildSingleAPI(b, logo, topNav, doc, specDir, basePath); err != nil {
 			return err
 		}
 	}
@@ -546,7 +635,7 @@ func (g *Generator) buildAPI(apiFiles []string) error {
 	return nil
 }
 
-func (g *Generator) buildSingleAPI(tmpl *template.Template, doc *openapi.APIDoc, outDir string, basePath string) error {
+func (g *Generator) buildSingleAPI(b *builder.Builder, logo map[string]any, topNav []map[string]any, doc *openapi.APIDoc, outDir string, basePath string) error {
 	type apiEndpointSection struct {
 		Endpoint        openapi.Endpoint
 		CurlExample     string
@@ -615,60 +704,204 @@ func (g *Generator) buildSingleAPI(tmpl *template.Template, doc *openapi.APIDoc,
 		tagSections = append(tagSections, apiTagSection{Tag: tag, Sections: sectionsByTag[tag]})
 	}
 
-	indexData := struct {
-		Config      config.Config
-		Title       string
-		Description string
-		Version     string
-		Servers     []openapi.Server
-		Tags        []openapi.Tag
-		Endpoints   []openapi.Endpoint
-		Sections    []apiEndpointSection
-		TagSections []apiTagSection
-		TagGroups   map[string][]openapi.Endpoint
-		ActiveSlug  string
-		BasePath    string
-	}{
-		Config:      g.Config,
-		Title:       doc.Title,
-		Description: doc.Description,
-		Version:     doc.Version,
-		Servers:     doc.Servers,
-		Tags:        doc.Tags,
-		Endpoints:   doc.Endpoints,
-		Sections:    sections,
-		TagSections: tagSections,
-		TagGroups:   doc.TagGroups,
-		BasePath:    basePath,
+	apiNav := make([]map[string]any, 0, len(tagSections))
+	apiGroups := make([]map[string]any, 0, len(tagSections))
+	for _, tag := range tagSections {
+		tagSlug := slugify(tag.Tag)
+		tagPath := basePath + "/" + tagSlug
+		items := make([]map[string]any, 0, len(tag.Sections))
+		ops := make([]map[string]any, 0, len(tag.Sections))
+		for _, sec := range tag.Sections {
+			ep := sec.Endpoint
+			items = append(items, map[string]any{
+				"label": fmt.Sprintf("[%s] %s", ep.Method, firstNonEmpty(ep.Summary, ep.Path)),
+				"href":  pageURL(tagPath) + "#" + ep.Slug,
+			})
+
+			params := make([]map[string]any, 0, len(ep.Parameters))
+			for _, p := range ep.Parameters {
+				t := ""
+				if p.Schema != nil {
+					t = p.Schema.TypeString()
+				}
+				params = append(params, map[string]any{
+					"name":        p.Name,
+					"in":          p.In,
+					"required":    p.Required,
+					"type":        t,
+					"description": p.Description,
+				})
+			}
+
+			requestTypes := make([]string, 0)
+			if ep.RequestBody != nil {
+				for ct, media := range ep.RequestBody.Content {
+					typeStr := ""
+					if media.Schema != nil {
+						typeStr = media.Schema.TypeString()
+					}
+					requestTypes = append(requestTypes, fmt.Sprintf("%s%s", ct, conditionalType(typeStr)))
+				}
+				sort.Strings(requestTypes)
+			}
+
+			responseRows := make([]map[string]any, 0)
+			for code, resp := range ep.Responses {
+				contentTypes := make([]string, 0)
+				for ct, media := range resp.Content {
+					typeStr := ""
+					if media.Schema != nil {
+						typeStr = media.Schema.TypeString()
+					}
+					contentTypes = append(contentTypes, fmt.Sprintf("%s%s", ct, conditionalType(typeStr)))
+				}
+				sort.Strings(contentTypes)
+				responseRows = append(responseRows, map[string]any{
+					"status":       code,
+					"description":  resp.Description,
+					"contentTypes": contentTypes,
+					"example":      firstExampleJSON(resp.Content),
+				})
+			}
+			sort.Slice(responseRows, func(i, j int) bool {
+				return fmt.Sprint(responseRows[i]["status"]) < fmt.Sprint(responseRows[j]["status"])
+			})
+
+			requestBodyExample := ""
+			if ep.RequestBody != nil {
+				requestBodyExample = firstExampleJSON(ep.RequestBody.Content)
+			}
+
+			examples := map[string]string{
+				"curl":   sec.CurlExample,
+				"go":     sec.GoExample,
+				"python": sec.PythonExample,
+				"js":     sec.JSExample,
+			}
+
+			ops = append(ops, map[string]any{
+				"slug":               ep.Slug,
+				"method":             ep.Method,
+				"path":               ep.Path,
+				"summary":            firstNonEmpty(ep.Summary, ep.Path),
+				"description":        ep.Description,
+				"parameters":         params,
+				"requestBody":        ep.RequestBody != nil,
+				"requestBodyText":    firstNonEmpty(requestBodyDescription(ep), ""),
+				"requestBodyExample": requestBodyExample,
+				"requestBodyFields":  requestBodyFields(ep),
+				"requestTypes":       requestTypes,
+				"responses":          responseRows,
+				"examples":           examples,
+			})
+		}
+
+		apiNav = append(apiNav, map[string]any{
+			"label": tag.Tag,
+			"href":  pageURL(tagPath),
+			"items": items,
+		})
+		apiGroups = append(apiGroups, map[string]any{
+			"name":       tag.Tag,
+			"slug":       tagSlug,
+			"operations": ops,
+		})
 	}
 
-	html, err := g.renderPage(tmpl, "api_index", indexData, pageMeta{
-		Title:       doc.Title,
-		Description: doc.Description,
-		Path:        basePath + "/",
-	})
-	if err != nil {
+	servers := make([]map[string]any, 0, len(doc.Servers))
+	for _, s := range doc.Servers {
+		servers = append(servers, map[string]any{"url": s.URL, "description": s.Description})
+	}
+
+	if len(apiGroups) == 0 {
+		return nil
+	}
+
+	tagDesc := map[string]string{}
+	for _, t := range doc.Tags {
+		tagDesc[t.Name] = t.Description
+	}
+
+	baseProps := func() map[string]any {
+		p := map[string]any{"logo": logo, "topNav": topNav, "nav": apiNav}
+		if g.Config.EditBaseURL != "" {
+			p["repoUrl"] = g.Config.EditBaseURL
+		}
+		if g.Config.Banner.Message != "" {
+			p["banner"] = map[string]any{
+				"message":     g.Config.Banner.Message,
+				"color":       g.Config.Banner.Color,
+				"dismissible": g.Config.Banner.Dismissible,
+			}
+		}
+		return p
+	}
+
+	// One page per tag (Zudoku-style): /api[/<spec>]/<tag>/.
+	tagSlugForEndpoint := map[string]string{}
+	for _, ts := range tagSections {
+		ts2 := slugify(ts.Tag)
+		for _, sec := range ts.Sections {
+			tagSlugForEndpoint[sec.Endpoint.Slug] = ts2
+		}
+	}
+
+	firstTagSlug := ""
+	for _, grp := range apiGroups {
+		tagName, _ := grp["name"].(string)
+		tagSlug, _ := grp["slug"].(string)
+		if firstTagSlug == "" {
+			firstTagSlug = tagSlug
+		}
+		tagPath := basePath + "/" + tagSlug
+		props := baseProps()
+		props["apiReference"] = map[string]any{
+			"title":       doc.Title,
+			"description": tagDesc[tagName],
+			"version":     doc.Version,
+			"basePath":    tagPath,
+			"servers":     servers,
+			"groups":      []map[string]any{grp},
+		}
+		if err := b.BuildPage(builder.PageInput{
+			Source:      []byte(""),
+			OutDir:      filepath.Join(outDir, tagSlug),
+			URLPath:     pageURL(tagPath),
+			AssetName:   "api-" + doc.Slug + "-" + tagSlug,
+			Title:       tagName + " · " + doc.Title,
+			Description: firstNonEmpty(tagDesc[tagName], doc.Description),
+			Props:       props,
+		}); err != nil {
+			return err
+		}
+	}
+
+	// basePath/ redirects to the first tag page.
+	if err := g.writePage(filepath.Join(outDir, "index.html"), redirectPage(pageURL(basePath+"/"+firstTagSlug))); err != nil {
 		return err
 	}
 
-	if err := g.writePage(filepath.Join(outDir, "index.html"), html); err != nil {
-		return err
-	}
-
+	// Legacy per-endpoint URLs redirect to their tag page + operation anchor.
 	for _, endpoint := range doc.Endpoints {
-		// Add to search index
+		tagSlug := tagSlugForEndpoint[endpoint.Slug]
+		target := pageURL(basePath+"/"+tagSlug) + "#" + endpoint.Slug
 		g.searchIndex = append(g.searchIndex, searchEntry{
 			Title:       endpoint.Method + " " + endpoint.Path,
 			Description: endpoint.Summary,
 			Section:     "API",
-			URL:         basePath + "/#" + endpoint.Slug,
+			URL:         target,
 			Content:     endpoint.Description,
 		})
+		if err := g.writePage(filepath.Join(outDir, endpoint.Slug, "index.html"), redirectPage(target)); err != nil {
+			return err
+		}
+	}
 
-		// Legacy endpoint pages now redirect to the consolidated API reference page
-		// with an operation anchor, preserving old links while using the new UX.
-		target := basePath + "/#" + endpoint.Slug
-		redirectHTML := fmt.Sprintf(`<!doctype html>
+	return nil
+}
+
+func redirectPage(target string) string {
+	return fmt.Sprintf(`<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -681,13 +914,143 @@ func (g *Generator) buildSingleAPI(tmpl *template.Template, doc *openapi.APIDoc,
   <p>Redirecting to <a href="%s">%s</a>...</p>
 </body>
 </html>`, target, target, target, target, target)
+}
 
-		if err := g.writePage(filepath.Join(outDir, endpoint.Slug, "index.html"), redirectHTML); err != nil {
-			return err
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return v
 		}
 	}
+	return ""
+}
 
-	return nil
+func conditionalType(typeStr string) string {
+	if strings.TrimSpace(typeStr) == "" {
+		return ""
+	}
+	return " - " + typeStr
+}
+
+// firstExampleJSON renders a pretty example JSON for a content map, preferring
+// application/json. It uses a spec-provided `example`/`examples` when present,
+// falling back to a generated example from the schema.
+func firstExampleJSON(content map[string]openapi.MediaType) string {
+	if m, ok := content["application/json"]; ok {
+		if s := mediaExampleJSON(m); s != "" {
+			return s
+		}
+	}
+	keys := make([]string, 0, len(content))
+	for k := range content {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		if s := mediaExampleJSON(content[k]); s != "" {
+			return s
+		}
+	}
+	return ""
+}
+
+// mediaExampleJSON prefers an explicit media-type example/examples, then the
+// schema's generated example.
+func mediaExampleJSON(m openapi.MediaType) string {
+	if m.Example != nil {
+		return jsonPretty(m.Example)
+	}
+	if len(m.Examples) > 0 {
+		keys := make([]string, 0, len(m.Examples))
+		for k := range m.Examples {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			if m.Examples[k].Value != nil {
+				return jsonPretty(m.Examples[k].Value)
+			}
+		}
+	}
+	if m.Schema != nil {
+		return openapi.GenerateExampleObject(m.Schema)
+	}
+	return ""
+}
+
+func jsonPretty(v any) string {
+	b, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
+// requestBodyFields extracts the top-level fields of a request body schema as
+// param-like cards (name/type/required/description).
+func requestBodyFields(ep openapi.Endpoint) []map[string]any {
+	if ep.RequestBody == nil {
+		return nil
+	}
+	var schema *openapi.Schema
+	if m, ok := ep.RequestBody.Content["application/json"]; ok {
+		schema = m.Schema
+	} else {
+		for _, m := range ep.RequestBody.Content {
+			schema = m.Schema
+			break
+		}
+	}
+	if schema == nil {
+		return nil
+	}
+	if schema.Type == "array" && schema.Items != nil {
+		schema = schema.Items
+	}
+	if len(schema.Properties) == 0 {
+		return nil
+	}
+
+	required := map[string]bool{}
+	for _, r := range schema.Required {
+		required[r] = true
+	}
+	names := make([]string, 0, len(schema.Properties))
+	for k := range schema.Properties {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+
+	fields := make([]map[string]any, 0, len(names))
+	for _, name := range names {
+		p := schema.Properties[name]
+		typeStr := ""
+		desc := ""
+		if p != nil {
+			typeStr = p.TypeString()
+			desc = p.Description
+		}
+		fields = append(fields, map[string]any{
+			"name":        name,
+			"type":        typeStr,
+			"required":    required[name],
+			"description": desc,
+		})
+	}
+	return fields
+}
+
+func requestBodyDescription(ep openapi.Endpoint) string {
+	if ep.RequestBody == nil {
+		return ""
+	}
+	if strings.TrimSpace(ep.RequestBody.Description) != "" {
+		return ep.RequestBody.Description
+	}
+	if ep.RequestBody.Required {
+		return "Required"
+	}
+	return ""
 }
 
 func (g *Generator) buildSitemap() error {
