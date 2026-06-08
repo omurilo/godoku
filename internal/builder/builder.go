@@ -63,6 +63,7 @@ type PageInput struct {
 	URLPath     string         // canonical URL path, e.g. "/docs/intro/"
 	AssetName   string         // base name for emitted assets ("intro" -> intro.js)
 	Title       string         // <title> and og:title
+	Heading     string         // when set, rendered as the page's H1 (from frontmatter title)
 	Description string         // meta description
 	Props       map[string]any // arbitrary props forwarded to <App>
 }
@@ -128,6 +129,12 @@ func (b *Builder) BuildPage(in PageInput) error {
 	// Strip the leading YAML frontmatter block: it is metadata for the generator,
 	// not MDX content. mdx-go would otherwise render it as a thematic break + text.
 	src = stripFrontmatter(src)
+
+	// The frontmatter title is the page's H1: prepend it and drop a duplicate
+	// leading H1 from the body so authors don't have to repeat the title.
+	if in.Heading != "" {
+		src = injectHeading(src, in.Heading)
+	}
 
 	// Rewrite GoDoku Markdown extensions (admonitions) and, for plain .md
 	// sources, escape literal braces so MDX does not treat them as expressions.

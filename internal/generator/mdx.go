@@ -95,10 +95,6 @@ func (g *Generator) buildMDXPages() error {
 		return err
 	}
 
-	if len(allSectionPages) == 0 && len(rootPages) == 0 {
-		return nil
-	}
-
 	appDir, err := g.materializeApp()
 	if err != nil {
 		return fmt.Errorf("materializing react shell: %w", err)
@@ -179,6 +175,7 @@ func (g *Generator) buildMDXPages() error {
 			URLPath:     url,
 			AssetName:   p.Slug,
 			Title:       p.title(),
+			Heading:     p.title(),
 			Description: p.fm.Description,
 			Props:       props,
 		}
@@ -228,9 +225,68 @@ func (g *Generator) buildMDXPages() error {
 		}
 	}
 
+	// Homepage: a `redirect` in config, an explicit content/index.md (already
+	// rendered above as a root page at "/"), or a synthesized default landing.
+	hasIndex := false
+	for _, p := range rootPages {
+		if pageURL(p.URLPath) == "/" {
+			hasIndex = true
+			break
+		}
+	}
+	if g.Config.Redirect != "" {
+		warn(g.writePage(filepath.Join(g.OutDir, "index.html"), redirectPage(g.Config.Redirect)))
+	} else if !hasIndex {
+		warn(g.buildDefaultHome(b, baseProps(), sections, sectionPages))
+	}
+
 	warn(g.buildMDX404(b, baseProps()))
 	g.mdxActive = true
 
+	return nil
+}
+
+// buildDefaultHome renders a fallback homepage when the project has no
+// content/index.md: a landing with the site title/description and a catalog of
+// the sections that have content.
+func (g *Generator) buildDefaultHome(b *builder.Builder, props map[string]any, sections []sectionDef, sectionPages map[string][]mdxPage) error {
+	props["sidebar"] = false
+
+	items := make([]map[string]any, 0, len(sections))
+	for _, s := range sections {
+		if len(sectionPages[s.name]) == 0 {
+			continue
+		}
+		title, desc := sectionMeta(s)
+		items = append(items, map[string]any{
+			"title":       title,
+			"description": desc,
+			"href":        pageURL("/" + s.name),
+		})
+	}
+
+	source := ""
+	if len(items) > 0 {
+		props["catalog"] = items
+		props["catalogTitle"] = g.Config.Title
+	} else {
+		source = "# " + g.Config.Title + "\n\n" + g.Config.Description + "\n"
+	}
+	props["title"] = g.Config.Title
+	props["description"] = g.Config.Description
+
+	if err := b.BuildPage(builder.PageInput{
+		Source:      []byte(source),
+		OutDir:      g.OutDir,
+		URLPath:     "/",
+		AssetName:   "index",
+		Title:       g.Config.Title,
+		Description: g.Config.Description,
+		Props:       props,
+	}); err != nil {
+		return err
+	}
+	g.indexPageMeta(g.Config.Title, g.Config.Description, "/", "")
 	return nil
 }
 
@@ -273,8 +329,7 @@ func (g *Generator) indexPageMeta(title, description, url, section string) {
 // (title + description cards). The section's title/description come from its
 // _index.md (menu config); there is no Markdown body.
 func (g *Generator) buildSectionCatalog(b *builder.Builder, props map[string]any, s sectionDef, pages []mdxPage) error {
-	sorted := append([]mdxPage(nil), pages...)
-	sortPages(sorted)
+	sorted := orderSectionPagesByNav(s.dir, pages)
 
 	items := make([]map[string]any, 0, len(sorted))
 	for _, p := range sorted {
@@ -316,7 +371,8 @@ func (g *Generator) buildSectionCatalog(b *builder.Builder, props map[string]any
 // category (sub-directory). Title/description come from the group's _index.md.
 func (g *Generator) buildGroupCatalog(b *builder.Builder, props map[string]any, s sectionDef, group string, pages []mdxPage) error {
 	sorted := append([]mdxPage(nil), pages...)
-	sortPages(sorted)
+	groupNav, _ := indexNavMeta(filepath.Join(s.dir, group))
+	sortPagesWithNav(sorted, groupNav)
 
 	items := make([]map[string]any, 0, len(sorted))
 	for _, p := range sorted {
@@ -499,6 +555,10 @@ func buildLogo(cfg config.Config) map[string]any {
 
 // buildTopNav builds the header navigation from config.Navigation, keeping only
 // sections that actually have pages (plus non-section links like /api).
+// buildTopNav builds the header navigation straight from the declarative
+// godoku.yaml `navigation` list. Section entries (docs/guides/tutorials) with no
+// content are hidden so a configured-but-empty section doesn't 404; everything
+// else (including a /api entry) is shown exactly as declared.
 func buildTopNav(cfg config.Config, sectionPages map[string][]mdxPage) []map[string]any {
 	sectionForPath := map[string]string{
 		"/docs":      "docs",
@@ -869,66 +929,7 @@ func flattenPages(sectionPages map[string][]mdxPage, cfg config.Config, sections
 
 	var flat []mdxPage
 	for _, s := range order {
-		var root []mdxPage
-		groups := map[string][]mdxPage{}
-		var groupOrder []string
-		for _, p := range sectionPages[s] {
-			if p.Group == "" {
-				root = append(root, p)
-				continue
-			}
-			if _, ok := groups[p.Group]; !ok {
-				groupOrder = append(groupOrder, p.Group)
-			}
-			groups[p.Group] = append(groups[p.Group], p)
-		}
-		navOrder, _ := indexNavMeta(sectionDir[s])
-		sortPagesWithNav(root, navOrder)
-
-		rootBySlug := make(map[string]mdxPage, len(root))
-		for _, p := range root {
-			rootBySlug[p.Slug] = p
-		}
-		usedRoot := map[string]bool{}
-		usedGroup := map[string]bool{}
-
-		appendGroupPages := func(groupName string) {
-			gp := groups[groupName]
-			if len(gp) == 0 {
-				return
-			}
-			groupDir := filepath.Join(sectionDir[s], groupName)
-			groupNavOrder, _ := indexNavMeta(groupDir)
-			sortPagesWithNav(gp, groupNavOrder)
-			flat = append(flat, gp...)
-		}
-
-		for _, slug := range navOrder {
-			if p, ok := rootBySlug[slug]; ok {
-				flat = append(flat, p)
-				usedRoot[slug] = true
-				continue
-			}
-			if _, ok := groups[slug]; ok {
-				appendGroupPages(slug)
-				usedGroup[slug] = true
-			}
-		}
-
-		for _, p := range root {
-			if usedRoot[p.Slug] {
-				continue
-			}
-			flat = append(flat, p)
-		}
-
-		sort.Strings(groupOrder)
-		for _, g := range groupOrder {
-			if usedGroup[g] {
-				continue
-			}
-			appendGroupPages(g)
-		}
+		flat = append(flat, orderSectionPagesByNav(sectionDir[s], sectionPages[s])...)
 	}
 	return flat
 }
@@ -1024,6 +1025,74 @@ func sortPages(ps []mdxPage) {
 		}
 		return ps[i].title() < ps[j].title()
 	})
+}
+
+// orderSectionPagesByNav returns a section's pages in the same order the sidebar
+// uses: the _index.md `nav` list drives both root pages and groups (groups
+// expand to their pages, ordered by the group's own _index.md nav); anything
+// not listed follows in default order. Used by the section catalog and
+// prev/next so all three agree.
+func orderSectionPagesByNav(dir string, pages []mdxPage) []mdxPage {
+	var root []mdxPage
+	groups := map[string][]mdxPage{}
+	var groupOrder []string
+	for _, p := range pages {
+		if p.isIndex {
+			continue
+		}
+		if p.Group == "" {
+			root = append(root, p)
+			continue
+		}
+		if _, ok := groups[p.Group]; !ok {
+			groupOrder = append(groupOrder, p.Group)
+		}
+		groups[p.Group] = append(groups[p.Group], p)
+	}
+
+	navOrder, _ := indexNavMeta(dir)
+	sortPagesWithNav(root, navOrder)
+	rootBySlug := make(map[string]mdxPage, len(root))
+	for _, p := range root {
+		rootBySlug[p.Slug] = p
+	}
+	usedRoot := map[string]bool{}
+	usedGroup := map[string]bool{}
+
+	var out []mdxPage
+	appendGroup := func(gname string) {
+		gp := groups[gname]
+		if len(gp) == 0 {
+			return
+		}
+		gno, _ := indexNavMeta(filepath.Join(dir, gname))
+		sortPagesWithNav(gp, gno)
+		out = append(out, gp...)
+	}
+
+	for _, slug := range navOrder {
+		if p, ok := rootBySlug[slug]; ok {
+			out = append(out, p)
+			usedRoot[slug] = true
+			continue
+		}
+		if _, ok := groups[slug]; ok {
+			appendGroup(slug)
+			usedGroup[slug] = true
+		}
+	}
+	for _, p := range root {
+		if !usedRoot[p.Slug] {
+			out = append(out, p)
+		}
+	}
+	sort.Strings(groupOrder)
+	for _, gname := range groupOrder {
+		if !usedGroup[gname] {
+			appendGroup(gname)
+		}
+	}
+	return out
 }
 
 // materializeApp extracts the embedded React shell to a temp directory so

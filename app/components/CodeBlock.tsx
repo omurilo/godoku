@@ -1,5 +1,29 @@
 import React from "react";
 import { runtimeImport } from "../lib/cdn";
+import { cn } from "../lib/utils";
+
+interface CodeMeta {
+  title?: string;
+  highlight: number[];
+  lineNumbers: boolean;
+}
+
+function parseRanges(spec: string): number[] {
+  const out: number[] = [];
+  spec
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .forEach((part) => {
+      const m = /^(\d+)-(\d+)$/.exec(part);
+      if (m) {
+        for (let i = +m[1]; i <= +m[2]; i++) out.push(i);
+      } else if (/^\d+$/.test(part)) {
+        out.push(+part);
+      }
+    });
+  return out;
+}
 
 /**
  * CodeBlock overrides the MDX <pre>. It renders plain code on the server (so
@@ -40,6 +64,29 @@ export function CodeBlock({ children }: any) {
   const { code, lang } = React.useMemo(() => extract(children), [children]);
   const [html, setHtml] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState(false);
+  const [meta, setMeta] = React.useState<CodeMeta>({ highlight: [], lineNumbers: false });
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const shikiRef = React.useRef<HTMLDivElement>(null);
+
+  // Read code-meta (title / highlight / line numbers) from the wrapping
+  // .gd-codemeta div the builder emits for fenced blocks that had a meta string.
+  React.useEffect(() => {
+    const wrap = containerRef.current?.closest(".gd-codemeta") as HTMLElement | null;
+    if (!wrap) return;
+    const ds = wrap.dataset;
+    setMeta({
+      title: ds.title || undefined,
+      highlight: parseRanges(ds.highlight || ""),
+      lineNumbers: ds.lineNumbers === "true",
+    });
+  }, []);
+
+  // After Shiki renders, mark highlighted lines.
+  React.useEffect(() => {
+    if (!shikiRef.current || meta.highlight.length === 0) return;
+    const lines = shikiRef.current.querySelectorAll(".line");
+    meta.highlight.forEach((n) => lines[n - 1]?.classList.add("gd-line--hl"));
+  }, [html, meta]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -72,13 +119,20 @@ export function CodeBlock({ children }: any) {
   };
 
   return (
-    <div className="gd-code">
-      <span className="gd-code-lang">{lang || "text"}</span>
+    <div
+      ref={containerRef}
+      className={cn("gd-code", meta.lineNumbers && "gd-code--ln", meta.title && "gd-code--titled")}
+    >
+      {meta.title ? (
+        <div className="gd-code-title">{meta.title}</div>
+      ) : (
+        <span className="gd-code-lang">{lang || "text"}</span>
+      )}
       <button type="button" className="gd-code-copy" onClick={copy} aria-label="Copy code">
         {copied ? "Copied!" : "Copy"}
       </button>
       {html !== null ? (
-        <div className="gd-shiki" dangerouslySetInnerHTML={{ __html: html }} />
+        <div ref={shikiRef} className="gd-shiki" dangerouslySetInnerHTML={{ __html: html }} />
       ) : (
         <pre className="gd-code-fallback">
           <code>{code}</code>

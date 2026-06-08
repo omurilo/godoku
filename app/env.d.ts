@@ -50,6 +50,9 @@ declare module "react" {
   export = React;
 }
 
+declare module "react-dom" {
+  export const createPortal: any;
+}
 declare module "react-dom/client" {
   export const hydrateRoot: any;
   export const createRoot: any;

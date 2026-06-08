@@ -44,7 +44,7 @@ export default function App(props: AppProps) {
   return (
     <div className="gd-shell">
       {banner?.message ? <Banner banner={banner} /> : null}
-      <Topbar logo={logo} repoUrl={repoUrl} topNav={topNav} currentPath={path} />
+      <Topbar logo={logo} repoUrl={repoUrl} topNav={topNav} currentPath={path} nav={nav} />
 
       <div className="gd-container">
         {showSidebar ? <Sidebar nav={nav} currentPath={path} /> : null}

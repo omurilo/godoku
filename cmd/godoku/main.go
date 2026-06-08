@@ -17,7 +17,7 @@ import (
 const version = "0.1.0"
 
 func main() {
-	generator.SetEmbedFS(godoku.TemplatesFS, godoku.StaticFS, godoku.AppFS)
+	generator.SetEmbedFS(godoku.AppFS)
 	if len(os.Args) < 2 {
 		printUsage()
 		os.Exit(1)

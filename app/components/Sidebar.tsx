@@ -82,17 +82,26 @@ function NavGroup({ link, current }: { link: NavLink; current?: string }) {
   );
 }
 
+/** NavTree renders the nav items; shared by the desktop sidebar and mobile drawer. */
+export function NavTree({ nav, currentPath }: { nav: NavLink[]; currentPath?: string }) {
+  return (
+    <>
+      {nav.map((link, i) =>
+        link.items?.length ? (
+          <NavGroup key={i} link={link} current={currentPath} />
+        ) : (
+          <NavLeaf key={i} link={link} current={currentPath} />
+        ),
+      )}
+    </>
+  );
+}
+
 export function Sidebar({ nav, currentPath }: { nav: NavLink[]; currentPath?: string }) {
   return (
     <aside className="gd-sidebar">
       <nav className="gd-nav">
-        {nav.map((link, i) =>
-          link.items?.length ? (
-            <NavGroup key={i} link={link} current={currentPath} />
-          ) : (
-            <NavLeaf key={i} link={link} current={currentPath} />
-          ),
-        )}
+        <NavTree nav={nav} currentPath={currentPath} />
       </nav>
     </aside>
   );

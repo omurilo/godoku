@@ -1,31 +1,24 @@
 package generator
 
 import (
-	"bytes"
 	"embed"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/omurilo/godoku/internal/builder"
 	"github.com/omurilo/godoku/internal/config"
-	"github.com/omurilo/godoku/internal/content"
 	"github.com/omurilo/godoku/internal/openapi"
 )
 
-var templatesFS embed.FS
-var staticFS embed.FS
 var appFS embed.FS
 
-func SetEmbedFS(templates, static, app embed.FS) {
-	templatesFS = templates
-	staticFS = static
+// SetEmbedFS provides the embedded React shell sources to the generator.
+func SetEmbedFS(app embed.FS) {
 	appFS = app
 }
 
@@ -33,7 +26,6 @@ type Generator struct {
 	Config       config.Config
 	RootDir      string
 	OutDir       string
-	NavItems     []config.NavItem
 	sitemapURLs  []string
 	searchIndex  []searchEntry
 	llmsEntries  []llmsEntry
@@ -71,23 +63,12 @@ func (g *Generator) Build() error {
 		return fmt.Errorf("creating output dir: %w", err)
 	}
 
-	if err := g.copyStaticAssets(); err != nil {
-		return fmt.Errorf("copying static assets: %w", err)
-	}
-
 	if err := g.copyPublicAssets(); err != nil {
 		return fmt.Errorf("copying public assets: %w", err)
 	}
 
 	if err := g.copyUserStatic(); err != nil {
 		return fmt.Errorf("copying user static files: %w", err)
-	}
-
-	// Build filtered navigation (hide empty sections)
-	g.NavItems = g.buildNavItems()
-
-	if err := g.buildIndex(); err != nil {
-		return fmt.Errorf("building index: %w", err)
 	}
 
 	apiFiles := openapi.DiscoverAPIs(g.RootDir)
@@ -97,9 +78,8 @@ func (g *Generator) Build() error {
 		}
 	}
 
-	// All section content (docs/guides/tutorials, .md and .mdx alike) is rendered
-	// through the React/esbuild/sobek MDX pipeline. This is a no-op (and touches
-	// no network) when the project contains no section content.
+	// All pages — section content (.md/.mdx), root pages, catalogs, the homepage
+	// and the 404 — are rendered through the React/esbuild/sobek MDX pipeline.
 	if err := g.buildMDXPages(); err != nil {
 		return fmt.Errorf("building mdx pages: %w", err)
 	}
@@ -114,10 +94,6 @@ func (g *Generator) Build() error {
 		return fmt.Errorf("building search index: %w", err)
 	}
 
-	if err := g.build404(); err != nil {
-		return fmt.Errorf("building 404 page: %w", err)
-	}
-
 	if g.Config.LLMs.LLMsTxt || g.Config.LLMs.LLMsTxtFull {
 		if err := g.buildLLMsTxt(); err != nil {
 			return fmt.Errorf("building llms.txt: %w", err)
@@ -127,37 +103,6 @@ func (g *Generator) Build() error {
 	return nil
 }
 
-func (g *Generator) copyStaticAssets() error {
-	outStaticDir := filepath.Join(g.OutDir, "static")
-	if err := os.MkdirAll(outStaticDir, 0755); err != nil {
-		return err
-	}
-
-	return fs.WalkDir(staticFS, "static", func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			return nil
-		}
-
-		data, err := staticFS.ReadFile(path)
-		if err != nil {
-			return err
-		}
-
-		outPath := filepath.Join(g.OutDir, path)
-		if err := os.MkdirAll(filepath.Dir(outPath), 0755); err != nil {
-			return err
-		}
-		return os.WriteFile(outPath, data, 0644)
-	})
-}
-
-// copyPublicAssets copies the user's public/ directory verbatim into the output
-// (dist/). It is additive: files there (images, CNAME, robots.txt, etc.) sit at
-// the site root and can be referenced directly from Markdown/MDX. Generated
-// pages may overwrite a colliding path.
 func (g *Generator) copyPublicAssets() error {
 	publicDir := filepath.Join(g.RootDir, "public")
 	info, err := os.Stat(publicDir)
@@ -232,314 +177,11 @@ func (g *Generator) copyUserStatic() error {
 	return nil
 }
 
-func (g *Generator) loadTemplates() (*template.Template, error) {
-	funcMap := template.FuncMap{
-		"lower":    strings.ToLower,
-		"upper":    strings.ToUpper,
-		"safeHTML": func(s string) template.HTML { return template.HTML(s) },
-		"isExternal": func(href string) bool {
-			return strings.HasPrefix(href, "http://") || strings.HasPrefix(href, "https://")
-		},
-		"sub": func(a, b int) int { return a - b },
-		"statusClass": func(code string) string {
-			if strings.HasPrefix(code, "2") {
-				return "2xx"
-			}
-			if strings.HasPrefix(code, "3") {
-				return "3xx"
-			}
-			if strings.HasPrefix(code, "4") {
-				return "4xx"
-			}
-			if strings.HasPrefix(code, "5") {
-				return "5xx"
-			}
-			return "default"
-		},
-	}
-
-	tmpl := template.New("").Funcs(funcMap)
-
-	entries, err := templatesFS.ReadDir("templates")
-	if err != nil {
-		return nil, err
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		data, err := templatesFS.ReadFile("templates/" + entry.Name())
-		if err != nil {
-			return nil, err
-		}
-		name := strings.TrimSuffix(entry.Name(), ".html")
-		if _, err := tmpl.New(name).Parse(string(data)); err != nil {
-			return nil, fmt.Errorf("parsing template %s: %w", entry.Name(), err)
-		}
-	}
-
-	return tmpl, nil
-}
-
-type pageMeta struct {
-	Title       string
-	Description string
-	Path        string
-}
-
-type layoutData struct {
-	Config          config.Config
-	NavItems        []config.NavItem
-	PageTitle       string
-	PageDescription string
-	CanonicalURL    string
-	OGType          string
-	HasCustomCSS    bool
-	HasCustomJS     bool
-	Body            template.HTML
-}
-
-func (g *Generator) renderPage(tmpl *template.Template, templateName string, data interface{}, meta pageMeta) (string, error) {
-	var bodyBuf bytes.Buffer
-	if err := tmpl.ExecuteTemplate(&bodyBuf, templateName, data); err != nil {
-		return "", fmt.Errorf("executing template %s: %w", templateName, err)
-	}
-
-	desc := meta.Description
-	if desc == "" {
-		desc = g.Config.Description
-	}
-
-	ogType := "article"
-	if meta.Path == "/" || meta.Path == "" {
-		ogType = "website"
-	}
-
-	canonical := strings.TrimRight(g.Config.URL, "/") + meta.Path
-
-	var pageBuf bytes.Buffer
-	ld := layoutData{
-		Config:          g.Config,
-		NavItems:        g.NavItems,
-		PageTitle:       meta.Title,
-		PageDescription: desc,
-		CanonicalURL:    canonical,
-		OGType:          ogType,
-		HasCustomCSS:    g.hasCustomCSS,
-		HasCustomJS:     g.hasCustomJS,
-		Body:            template.HTML(bodyBuf.String()),
-	}
-	if err := tmpl.ExecuteTemplate(&pageBuf, "layout", ld); err != nil {
-		return "", fmt.Errorf("executing layout: %w", err)
-	}
-
-	// Track page for sitemap
-	g.sitemapURLs = append(g.sitemapURLs, meta.Path)
-
-	return pageBuf.String(), nil
-}
-
 func (g *Generator) writePage(outputPath string, htmlContent string) error {
-	dir := filepath.Dir(outputPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
 		return err
 	}
 	return os.WriteFile(outputPath, []byte(htmlContent), 0644)
-}
-
-func (g *Generator) buildIndex() error {
-	// If redirect is set, generate redirect index.html
-	if g.Config.Redirect != "" {
-		redirectHTML := fmt.Sprintf(`<!DOCTYPE html>
-<html>
-<head>
-<meta http-equiv="refresh" content="0; url=%s">
-<link rel="canonical" href="%s">
-</head>
-<body></body>
-</html>`, g.Config.Redirect, g.Config.Redirect)
-		return g.writePage(filepath.Join(g.OutDir, "index.html"), redirectHTML)
-	}
-
-	// content/index.md is rendered through the MDX/React pipeline (buildMDXPages),
-	// not here, so it gets the same shell as every other page. Skip the default
-	// homepage when it exists.
-	indexMdPath := filepath.Join(g.RootDir, "content", "index.md")
-	if _, err := os.Stat(indexMdPath); err == nil {
-		return nil
-	}
-	indexMdxPath := filepath.Join(g.RootDir, "content", "index.mdx")
-	if _, err := os.Stat(indexMdxPath); err == nil {
-		return nil
-	}
-
-	// Otherwise, use the default homepage
-	tmpl, err := g.loadTemplates()
-	if err != nil {
-		return err
-	}
-	data := struct {
-		Config config.Config
-	}{
-		Config: g.Config,
-	}
-	html, err := g.renderPage(tmpl, "index", data, pageMeta{Title: "Home", Path: "/"})
-	if err != nil {
-		return err
-	}
-	return g.writePage(filepath.Join(g.OutDir, "index.html"), html)
-}
-
-func (g *Generator) buildSection(section string, contentDir string) error {
-	groups, rootPages, err := content.LoadSectionGrouped(contentDir, section)
-	if err != nil {
-		return err
-	}
-
-	allPages := content.AllPages(groups, rootPages)
-
-	tmpl, err := g.loadTemplates()
-	if err != nil {
-		return err
-	}
-
-	sectionTitle := strings.Title(section)
-
-	// Section index page
-	indexData := sectionData{
-		Config:       g.Config,
-		SectionTitle: sectionTitle,
-		Groups:       groups,
-		RootPages:    rootPages,
-		AllPages:     allPages,
-	}
-
-	html, err := g.renderPage(tmpl, "section", indexData, pageMeta{Title: sectionTitle, Path: "/" + section + "/"})
-	if err != nil {
-		return err
-	}
-
-	sectionDir := filepath.Join(g.OutDir, section)
-	if err := g.writePage(filepath.Join(sectionDir, "index.html"), html); err != nil {
-		return err
-	}
-
-	// Individual pages
-	for i, page := range allPages {
-		var prevPage, nextPage *content.Page
-		if i > 0 {
-			prevPage = &allPages[i-1]
-		}
-		if i < len(allPages)-1 {
-			nextPage = &allPages[i+1]
-		}
-
-		// Add to search index
-		g.searchIndex = append(g.searchIndex, searchEntry{
-			Title:       page.Title,
-			Description: page.Description,
-			Section:     sectionTitle,
-			URL:         page.URLPath + "/",
-			Content:     stripHTML(page.Content),
-		})
-
-		// Collect for llms.txt
-		g.llmsEntries = append(g.llmsEntries, llmsEntry{
-			Title:       page.Title,
-			Description: page.Description,
-			URL:         page.URLPath + "/",
-			Content:     stripHTML(page.Content),
-		})
-
-		// Build edit URL
-		var editURL string
-		if g.Config.EditBaseURL != "" && page.SourcePath != "" {
-			rel, err := filepath.Rel(g.RootDir, page.SourcePath)
-			if err == nil {
-				editURL = strings.TrimRight(g.Config.EditBaseURL, "/") + "/" + filepath.ToSlash(rel)
-			}
-		}
-
-		pageData := sectionData{
-			Config:       g.Config,
-			SectionTitle: sectionTitle,
-			Groups:       groups,
-			RootPages:    rootPages,
-			AllPages:     allPages,
-			ActiveSlug:   page.Slug,
-			ActivePage:   &page,
-			PrevPage:     prevPage,
-			NextPage:     nextPage,
-			EditURL:      editURL,
-		}
-
-		html, err := g.renderPage(tmpl, "section", pageData, pageMeta{
-			Title:       page.Title,
-			Description: page.Description,
-			Path:        page.URLPath + "/",
-		})
-		if err != nil {
-			return err
-		}
-
-		// Pages in groups: /section/group/slug/
-		// Root pages: /section/slug/
-		var pagePath string
-		if page.Group != "" {
-			pagePath = filepath.Join(sectionDir, page.Group, page.Slug, "index.html")
-		} else {
-			pagePath = filepath.Join(sectionDir, page.Slug, "index.html")
-		}
-
-		if err := g.writePage(pagePath, html); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-type sectionData struct {
-	Config       config.Config
-	SectionTitle string
-	Groups       []content.PageGroup
-	RootPages    []content.Page
-	AllPages     []content.Page
-	ActiveSlug   string
-	ActivePage   *content.Page
-	PrevPage     *content.Page
-	NextPage     *content.Page
-	EditURL      string
-}
-
-func (g *Generator) buildNavItems() []config.NavItem {
-	sectionDirs := map[string]string{
-		"/docs":      g.Config.Sections.Docs,
-		"/guides":    g.Config.Sections.Guides,
-		"/tutorials": g.Config.Sections.Tutorials,
-	}
-
-	var items []config.NavItem
-	for _, nav := range g.Config.Navigation {
-		if dir, ok := sectionDirs[nav.Path]; ok {
-			contentDir := dir
-			if !filepath.IsAbs(contentDir) {
-				contentDir = filepath.Join(g.RootDir, contentDir)
-			}
-			groups, rootPages, _ := content.LoadSectionGrouped(contentDir, "")
-			if len(rootPages) == 0 && len(groups) == 0 {
-				continue
-			}
-		} else if nav.Path == "/api" {
-			apiFiles := openapi.DiscoverAPIs(g.RootDir)
-			if len(apiFiles) == 0 {
-				continue
-			}
-		}
-		items = append(items, nav)
-	}
-	return items
 }
 
 func (g *Generator) buildAPI(apiFiles []string) error {
@@ -568,8 +210,8 @@ func (g *Generator) buildAPI(apiFiles []string) error {
 	}
 
 	logo := buildLogo(g.Config)
-	topNav := make([]map[string]any, 0, len(g.NavItems))
-	for _, item := range g.NavItems {
+	topNav := make([]map[string]any, 0, len(g.Config.Navigation))
+	for _, item := range g.Config.Navigation {
 		topNav = append(topNav, map[string]any{
 			"label": item.Label,
 			"href":  pageURL(item.Path),
@@ -1078,71 +720,12 @@ func (g *Generator) buildRobotsTxt() error {
 	return g.writePage(filepath.Join(g.OutDir, "robots.txt"), content)
 }
 
-var htmlTagRe = regexp.MustCompile(`<[^>]*>`)
-
-func stripHTML(s string) string {
-	text := htmlTagRe.ReplaceAllString(s, " ")
-	// Collapse whitespace
-	parts := strings.Fields(text)
-	result := strings.Join(parts, " ")
-	// Truncate to keep index size reasonable
-	if len(result) > 500 {
-		result = result[:500]
-	}
-	return result
-}
-
 func (g *Generator) buildSearchIndex() error {
 	data, err := json.Marshal(g.searchIndex)
 	if err != nil {
 		return fmt.Errorf("marshaling search index: %w", err)
 	}
 	return g.writePage(filepath.Join(g.OutDir, "search-index.json"), string(data))
-}
-
-func (g *Generator) build404() error {
-	// When the MDX/React pipeline ran, it already rendered 404.html via the shell.
-	if g.mdxActive {
-		return nil
-	}
-
-	tmpl, err := g.loadTemplates()
-	if err != nil {
-		return err
-	}
-
-	notFoundHTML := `<div class="not-found">
-	<h1>404</h1>
-	<p>Page not found</p>
-	<p class="not-found-desc">The page you're looking for doesn't exist or has been moved.</p>
-	<a href="/" class="btn">Go Home</a>
-</div>`
-
-	html, err := g.renderPage(tmpl, "raw", struct{ Content template.HTML }{Content: template.HTML(notFoundHTML)}, pageMeta{
-		Title: "Page Not Found",
-		Path:  "/404.html",
-	})
-	if err != nil {
-		// If "raw" template doesn't exist, write a simple page
-		ld := layoutData{
-			Config:          g.Config,
-			NavItems:        g.NavItems,
-			PageTitle:       "Page Not Found",
-			PageDescription: "The page you're looking for doesn't exist.",
-			CanonicalURL:    g.Config.URL + "/404.html",
-			OGType:          "website",
-			HasCustomCSS:    g.hasCustomCSS,
-			HasCustomJS:     g.hasCustomJS,
-			Body:            template.HTML(notFoundHTML),
-		}
-		var pageBuf bytes.Buffer
-		if err := tmpl.ExecuteTemplate(&pageBuf, "layout", ld); err != nil {
-			return err
-		}
-		return g.writePage(filepath.Join(g.OutDir, "404.html"), pageBuf.String())
-	}
-
-	return g.writePage(filepath.Join(g.OutDir, "404.html"), html)
 }
 
 func (g *Generator) buildLLMsTxt() error {

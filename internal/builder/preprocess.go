@@ -13,13 +13,99 @@ import (
 // escapeExpr should be true for plain Markdown (`.md`) sources, where `{`/`}`
 // in prose are literal text; it is false for `.mdx`, where braces are real JSX
 // expressions the author intends to evaluate.
+// injectHeading makes the given title the document's H1: it drops a leading
+// ATX H1 already present in the body (to avoid a duplicate) and prepends
+// "# <heading>". The body is otherwise untouched.
+func injectHeading(src []byte, heading string) []byte {
+	body := strings.TrimLeft(string(src), "\n")
+	if strings.HasPrefix(body, "# ") {
+		if nl := strings.IndexByte(body, '\n'); nl >= 0 {
+			body = strings.TrimLeft(body[nl+1:], "\n")
+		} else {
+			body = ""
+		}
+	}
+	return []byte("# " + heading + "\n\n" + body)
+}
+
 func preprocessMDX(src []byte, escapeExpr bool) []byte {
 	text := string(src)
+	text = wrapCodeMeta(text)
 	text = convertAdmonitions(text)
 	if escapeExpr {
 		text = escapeBracesOutsideCode(text)
 	}
 	return []byte(text)
+}
+
+var codeTitleRe = regexp.MustCompile(`title="([^"]*)"`)
+var codeHighlightRe = regexp.MustCompile(`\{([0-9,\-\s]+)\}`)
+
+// wrapCodeMeta extracts fenced-code metadata (title="…", {1,3-5}, showLineNumbers)
+// from the info string, strips it so mdx-go gets a clean ```lang fence, and wraps
+// the block in <div className="gd-codemeta" data-…> so the React CodeBlock can
+// render a title bar, line numbers and highlighted lines.
+func wrapCodeMeta(text string) string {
+	lines := strings.Split(text, "\n")
+	var out []string
+	inBlock := false
+	wrapped := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		if !inBlock && strings.HasPrefix(trimmed, "```") {
+			inBlock = true
+			info := strings.TrimSpace(strings.TrimPrefix(trimmed, "```"))
+			lang := info
+			if i := strings.IndexAny(info, " \t"); i >= 0 {
+				lang = info[:i]
+			}
+
+			title := ""
+			if m := codeTitleRe.FindStringSubmatch(info); m != nil {
+				title = m[1]
+			}
+			highlight := ""
+			if m := codeHighlightRe.FindStringSubmatch(info); m != nil {
+				highlight = strings.ReplaceAll(m[1], " ", "")
+			}
+			lineNumbers := strings.Contains(info, "showLineNumbers")
+
+			if title != "" || highlight != "" || lineNumbers {
+				wrapped = true
+				attrs := ""
+				if title != "" {
+					attrs += ` data-title="` + jsxAttr(title) + `"`
+				}
+				if highlight != "" {
+					attrs += ` data-highlight="` + highlight + `"`
+				}
+				if lineNumbers {
+					attrs += ` data-line-numbers="true"`
+				}
+				out = append(out, "", `<div className="gd-codemeta"`+attrs+`>`, "", "```"+lang)
+			} else {
+				wrapped = false
+				out = append(out, line)
+			}
+			continue
+		}
+
+		if inBlock && strings.HasPrefix(trimmed, "```") {
+			inBlock = false
+			out = append(out, line)
+			if wrapped {
+				out = append(out, "", "</div>", "")
+				wrapped = false
+			}
+			continue
+		}
+
+		out = append(out, line)
+	}
+
+	return strings.Join(out, "\n")
 }
 
 var admonitionTitles = map[string]string{

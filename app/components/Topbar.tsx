@@ -1,6 +1,7 @@
 import React from "react";
 import { Search } from "./Search";
-import type { BrandLogo, TopNavItem } from "../types";
+import { MobileNav } from "./MobileNav";
+import type { BrandLogo, NavLink, TopNavItem } from "../types";
 
 function useColorScheme(): [boolean, () => void] {
   const [dark, setDark] = React.useState(false);
@@ -31,11 +32,13 @@ export function Topbar({
   repoUrl,
   topNav = [],
   currentPath,
+  nav = [],
 }: {
   logo?: BrandLogo;
   repoUrl?: string;
   topNav?: TopNavItem[];
   currentPath?: string;
+  nav?: NavLink[];
 }) {
   const [dark, toggle] = useColorScheme();
   const isActive = (href: string) =>
@@ -44,6 +47,7 @@ export function Topbar({
   return (
     <header className="gd-topbar">
       <div className="gd-topbar-inner">
+        <MobileNav nav={nav} topNav={topNav} currentPath={currentPath} />
         <a href={logo?.href ?? "/"} className="gd-brand">
           <BrandMark logo={logo} />
         </a>
