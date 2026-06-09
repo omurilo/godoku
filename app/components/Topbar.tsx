@@ -94,12 +94,14 @@ function BrandMark({ logo }: { logo?: BrandLogo }) {
   const light = logo?.srcLight || logo?.src;
   const dark = logo?.srcDark || logo?.srcLight || logo?.src;
   const alt = logo?.alt ?? logo?.title ?? "Logo";
+  const width = logo?.width ? `${logo.width}px` : 'auto';
+  const height = logo?.height ? `${logo.height}px` : 'auto';
 
   if (light || dark) {
     return (
       <>
-        <img src={light} alt={alt} className="gd-brand-logo gd-brand-logo--light" />
-        <img src={dark} alt={alt} className="gd-brand-logo gd-brand-logo--dark" />
+        <img src={light} alt={alt} style={{ width, height }} className="gd-brand-logo gd-brand-logo--light" />
+        <img src={dark} alt={alt} style={{ width, height }} className="gd-brand-logo gd-brand-logo--dark" />
       </>
     );
   }

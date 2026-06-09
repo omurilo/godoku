@@ -100,6 +100,8 @@ export interface BrandLogo {
   src?: string;
   srcLight?: string;
   srcDark?: string;
+  width?: number;
+  height?: number;
 }
 
 export interface TopNavItem {

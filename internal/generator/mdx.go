@@ -550,6 +550,13 @@ func buildLogo(cfg config.Config) map[string]any {
 	if cfg.Branding.LogoAlt != "" {
 		logo["alt"] = cfg.Branding.LogoAlt
 	}
+	if cfg.Branding.LogoWidth != "" {
+		logo["width"] = cfg.Branding.LogoWidth
+	}
+	if cfg.Branding.LogoHeight != "" {
+		logo["height"] = cfg.Branding.LogoHeight
+	}
+
 	return logo
 }
 
@@ -641,9 +648,11 @@ func bodyAfterFrontmatter(data []byte) []byte {
 	return data
 }
 
-var tocHeadingRe = regexp.MustCompile(`^(#{2,4})\s+(.+?)\s*#*$`)
-var inlineMarkupRe = regexp.MustCompile("[*_`]+")
-var mdLinkRe = regexp.MustCompile(`\[([^\]]*)\]\([^)]*\)`)
+var (
+	tocHeadingRe   = regexp.MustCompile(`^(#{2,4})\s+(.+?)\s*#*$`)
+	inlineMarkupRe = regexp.MustCompile("[*_`]+")
+	mdLinkRe       = regexp.MustCompile(`\[([^\]]*)\]\([^)]*\)`)
+)
 
 // extractTOC scans Markdown for h2–h4 ATX headings (skipping fenced code) and
 // returns {level, id, title} maps. id uses slugify, mirroring the heading
