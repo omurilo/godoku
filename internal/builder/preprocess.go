@@ -38,8 +38,10 @@ func preprocessMDX(src []byte, escapeExpr bool) []byte {
 	return []byte(text)
 }
 
-var codeTitleRe = regexp.MustCompile(`title="([^"]*)"`)
-var codeHighlightRe = regexp.MustCompile(`\{([0-9,\-\s]+)\}`)
+var (
+	codeTitleRe     = regexp.MustCompile(`title="([^"]*)"`)
+	codeHighlightRe = regexp.MustCompile(`\{([0-9,\-\s]+)\}`)
+)
 
 // wrapCodeMeta extracts fenced-code metadata (title="…", {1,3-5}, showLineNumbers)
 // from the info string, strips it so mdx-go gets a clean ```lang fence, and wraps

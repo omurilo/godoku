@@ -125,6 +125,11 @@ func (r *esmResolver) setup(build api.PluginBuild) {
 		if isHTTPURL(p) {
 			return api.OnResolveResult{Path: p, Namespace: esmNamespace}, nil
 		}
+		// Inlined data: URIs (e.g. CSS url("data:image/svg+xml,...")) are not
+		// modules — leave them verbatim instead of treating them as a package.
+		if strings.HasPrefix(p, "data:") {
+			return api.OnResolveResult{Path: p, External: true}, nil
+		}
 		// Relative or absolute filesystem import: not ours.
 		if strings.HasPrefix(p, ".") || strings.HasPrefix(p, "/") || filepath.IsAbs(p) {
 			return api.OnResolveResult{}, nil

@@ -1888,19 +1888,45 @@ a {
   position: relative;
   margin: 1.5rem 0;
   border-radius: var(--radius);
-  border: 1px solid hsl(var(--border));
-  border-left-width: 3px;
-  padding: 0.9rem 1.1rem;
-  background-color: hsl(var(--muted) / 0.5);
+  /* Border, background tint, title and icon all derive from a single
+     --ad-accent per type, so they can never drift apart. --ad-surface is the
+     page background the 6% tint sits on (overridden for dark mode below); the
+     default accent keeps a bare, type-less admonition looking neutral. */
+  --ad-accent: hsl(233.19deg 6.15% 46.34%);
+  --ad-surface: hsl(0deg 0% 100%);
+  border: 1px solid color-mix(in oklab, var(--ad-accent) 25%, transparent);
+  /* Left padding reserves a gutter for the icon so the title and the body
+     text both align to the same indent, with the icon hanging beside them. */
+  padding: 0.9rem 1.1rem 0.9rem 2.85rem;
+  background-color: color-mix(in oklab, var(--ad-accent) 6%, var(--ad-surface));
+}
+.dark .godoku-admonition {
+  --ad-surface: hsl(0deg 3.85% 10.2%);
 }
 .godoku-admonition[data-title]::before {
   content: attr(data-title);
   display: block;
   margin-bottom: 0.4rem;
+  color: var(--ad-accent);
   font-weight: 600;
   font-size: 0.78rem;
   letter-spacing: 0.03em;
   text-transform: uppercase;
+}
+/* Lucide icon in the left gutter, vertically aligned with the title. Drawn
+   with mask-image so it inherits --ad-accent (and follows dark mode) instead
+   of baking color into the SVG. */
+.godoku-admonition[data-title]::after {
+  content: "";
+  position: absolute;
+  top: 0.92rem;
+  left: 1.1rem;
+  width: 0.95rem;
+  height: 0.95rem;
+  margin-top: 0.15rem;
+  background-color: var(--ad-accent);
+  -webkit-mask: var(--ad-icon) center / contain no-repeat;
+  mask: var(--ad-icon) center / contain no-repeat;
 }
 .godoku-admonition > :first-child {
   margin-top: 0;
@@ -1908,18 +1934,49 @@ a {
 .godoku-admonition > :last-child {
   margin-bottom: 0;
 }
-.godoku-admonition-note { border-left-color: hsl(212 80% 55%); }
-.godoku-admonition-note::before { color: hsl(212 80% 48%); }
-.godoku-admonition-info { border-left-color: hsl(199 89% 48%); }
-.godoku-admonition-info::before { color: hsl(199 84% 44%); }
-.godoku-admonition-tip { border-left-color: hsl(142 71% 40%); }
-.godoku-admonition-tip::before { color: hsl(142 65% 35%); }
-.godoku-admonition-warning { border-left-color: hsl(38 92% 50%); }
-.godoku-admonition-warning::before { color: hsl(38 85% 43%); }
+.godoku-admonition-note {
+  --ad-accent: hsl(233.19deg 6.15% 46.34%);
+  --ad-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%22M21.174%206.812a1%201%200%200%200-3.986-3.987L3.842%2016.174a2%202%200%200%200-.5.83l-1.321%204.352a.5.5%200%200%200%20.623.622l4.353-1.32a2%202%200%200%200%20.83-.497z%22%2F%3E%3Cpath%20d%3D%22m15%205%204%204%22%2F%3E%3C%2Fsvg%3E");
+}
+.godoku-admonition-info {
+  --ad-accent: hsl(206.21deg 88.66% 44.07%);
+  --ad-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%2210%22%2F%3E%3Cpath%20d%3D%22M12%2016v-4%22%2F%3E%3Cpath%20d%3D%22M12%208h.01%22%2F%3E%3C%2Fsvg%3E");
+}
+.godoku-admonition-tip {
+  --ad-accent: hsl(127.33deg 54.32% 40.5%);
+  --ad-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%22M15%2014c.2-1%20.7-1.7%201.5-2.5%201-.9%201.5-2.2%201.5-3.5A6%206%200%200%200%206%208c0%201%20.2%202.2%201.5%203.5.7.7%201.3%201.5%201.5%202.5%22%2F%3E%3Cpath%20d%3D%22M9%2018h6%22%2F%3E%3Cpath%20d%3D%22M10%2022h4%22%2F%3E%3C%2Fsvg%3E");
+}
+.godoku-admonition-warning {
+  --ad-accent: hsl(42.38deg 100% 34.72%);
+  --ad-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%22m21.73%2018-8-14a2%202%200%200%200-3.48%200l-8%2014A2%202%200%200%200%204%2021h16a2%202%200%200%200%201.73-3%22%2F%3E%3Cpath%20d%3D%22M12%209v4%22%2F%3E%3Cpath%20d%3D%22M12%2017h.01%22%2F%3E%3C%2Fsvg%3E");
+}
+.godoku-admonition-danger {
+  --ad-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%22M12%2016h.01%22%2F%3E%3Cpath%20d%3D%22M12%208v4%22%2F%3E%3Cpath%20d%3D%22M15.312%202a2%202%200%200%201%201.414.586l4.688%204.688A2%202%200%200%201%2022%208.688v6.624a2%202%200%200%201-.586%201.414l-4.688%204.688a2%202%200%200%201-1.414.586H8.688a2%202%200%200%201-1.414-.586l-4.688-4.688A2%202%200%200%201%202%2015.312V8.688a2%202%200%200%201%20.586-1.414l4.688-4.688A2%202%200%200%201%208.688%202z%22%2F%3E%3C%2Fsvg%3E");
+}
+.godoku-admonition-caution {
+  --ad-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%22m21.73%2018-8-14a2%202%200%200%200-3.48%200l-8%2014A2%202%200%200%200%204%2021h16a2%202%200%200%200%201.73-3%22%2F%3E%3Cpath%20d%3D%22M12%209v4%22%2F%3E%3Cpath%20d%3D%22M12%2017h.01%22%2F%3E%3C%2Fsvg%3E");
+}
 .godoku-admonition-danger,
-.godoku-admonition-caution { border-left-color: hsl(0 78% 56%); }
-.godoku-admonition-danger::before,
-.godoku-admonition-caution::before { color: hsl(0 72% 52%); }
+.godoku-admonition-caution {
+  --ad-accent: hsl(356.98deg 79.12% 53.56%);
+}
+
+.dark .godoku-admonition-note {
+  --ad-accent: hsl(233.01deg 9.14% 66.48%);
+}
+.dark .godoku-admonition-info {
+  --ad-accent: hsl(209 100% 65%);
+}
+.dark .godoku-admonition-tip {
+  --ad-accent: hsl(124 50% 58%);
+}
+.dark .godoku-admonition-warning {
+  --ad-accent: hsl(38.34deg 94.49% 56.15%);
+}
+.dark .godoku-admonition-danger,
+.dark .godoku-admonition-caution {
+  --ad-accent: hsl(1.29deg 100% 68.65%);
+}
 
 /* ---- API Reference Pages --------------------------------------------- */
 
