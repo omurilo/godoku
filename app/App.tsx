@@ -21,9 +21,6 @@ import type { AppProps } from "./types";
 export default function App(props: AppProps) {
   const {
     content: Content,
-    nav = [],
-    topNav = [],
-    toc = [],
     api,
     title,
     description,
@@ -35,6 +32,15 @@ export default function App(props: AppProps) {
     catalogTitle,
     apiReference,
   } = props;
+
+  // Empty lists arrive from the generator as JSON `null` (Go marshals a nil
+  // slice as null), and a destructuring default like `nav = []` only fills in
+  // `undefined` — not `null`. Coalesce explicitly so API-only sites (no content
+  // sections, hence an empty nav) don't pass `null` down to Sidebar/MobileNav,
+  // where `nav.length` would throw during SSR.
+  const nav = props.nav ?? [];
+  const topNav = props.topNav ?? [];
+  const toc = props.toc ?? [];
 
   const isCatalog = Array.isArray(catalog) && catalog.length > 0;
   const isAPI = !!apiReference;
