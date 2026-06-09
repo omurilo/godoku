@@ -185,9 +185,27 @@ func (g *Generator) writePage(outputPath string, htmlContent string) error {
 }
 
 func (g *Generator) buildAPI(apiFiles []string) error {
-	docs, err := openapi.LoadAllSpecs(apiFiles, g.RootDir)
+	orderedFiles, overrides := g.orderAPIs(apiFiles)
+
+	docs, err := openapi.LoadAllSpecs(orderedFiles, g.RootDir)
 	if err != nil {
 		return err
+	}
+
+	// LoadAllSpecs preserves input order, so docs[i] is orderedFiles[i]. Apply
+	// the per-spec overrides (slug/title/description) from godoku.yaml.
+	for i, doc := range docs {
+		if ov, ok := overrides[orderedFiles[i]]; ok {
+			if ov.Slug != "" {
+				doc.Slug = ov.Slug
+			}
+			if ov.Title != "" {
+				doc.Title = ov.Title
+			}
+			if ov.Description != "" {
+				doc.Description = ov.Description
+			}
+		}
 	}
 
 	appDir, err := g.materializeApp()
@@ -275,6 +293,56 @@ func (g *Generator) buildAPI(apiFiles []string) error {
 	}
 
 	return nil
+}
+
+// orderAPIs orders the auto-discovered spec files so that any APIs explicitly
+// listed in godoku.yaml come first, in the order they appear there, with the
+// remaining auto-discovered specs following (already sorted by file name). It
+// also returns the per-spec overrides keyed by the discovered file path so the
+// caller can apply them after loading.
+func (g *Generator) orderAPIs(discovered []string) ([]string, map[string]config.APISpec) {
+	ordered := make([]string, 0, len(discovered))
+	overrides := make(map[string]config.APISpec)
+	used := make(map[string]bool)
+
+	for _, api := range g.Config.APIs {
+		if strings.TrimSpace(api.Spec) == "" {
+			continue
+		}
+		file := matchSpec(api.Spec, discovered)
+		if file == "" || used[file] {
+			continue
+		}
+		used[file] = true
+		ordered = append(ordered, file)
+		overrides[file] = api
+	}
+
+	for _, file := range discovered {
+		if !used[file] {
+			ordered = append(ordered, file)
+		}
+	}
+
+	return ordered, overrides
+}
+
+// matchSpec resolves a configured spec reference to one of the discovered file
+// paths. It accepts either a full root-relative path ("apis/teams.yaml") or a
+// bare file name ("teams.yaml"), and returns "" when nothing matches.
+func matchSpec(spec string, discovered []string) string {
+	want := strings.TrimPrefix(filepath.ToSlash(strings.TrimSpace(spec)), "./")
+	for _, file := range discovered {
+		if filepath.ToSlash(file) == want {
+			return file
+		}
+	}
+	for _, file := range discovered {
+		if filepath.Base(file) == filepath.Base(want) {
+			return file
+		}
+	}
+	return ""
 }
 
 func (g *Generator) buildSingleAPI(b *builder.Builder, logo map[string]any, topNav []map[string]any, doc *openapi.APIDoc, outDir string, basePath string) error {

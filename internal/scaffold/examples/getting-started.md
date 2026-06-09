@@ -42,8 +42,8 @@ draft: false
 Add your OpenAPI spec files and reference them in `godoku.yaml`:
 
 ```yaml
-openapi:
-  - openapi.yaml
+apis:
+  - spec: openapi.yaml
 ```
 
 Your API reference will be automatically generated at `/api/`.
