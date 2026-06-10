@@ -1,5 +1,5 @@
 godoku
 !cmd/godoku
-public/
 *.exe
 .DS_Store
+dist

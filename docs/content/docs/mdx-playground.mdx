@@ -1,0 +1,32 @@
+---
+title: MDX Playground
+description: A page rendered by the native Go MDX engine (mdx-go + esbuild + sobek).
+order: 99
+---
+
+# MDX Playground
+
+This page is **not** rendered by the legacy Go templates. It is compiled by
+`mdx-go` into a React module, server-rendered through `esbuild` + `sobek`, and
+hydrated in the browser with React fetched from `esm.sh` — no Node toolchain
+involved.
+
+## Markdown still works
+
+- Lists, **bold**, _italic_ and `inline code`
+- Tables, blockquotes, links
+
+> The answer to everything is `{6`\*`7}`.
+
+```ts title="example.ts"
+export function greet(name: string): string {
+  return "Hello, " + name + "!";
+}
+```
+
+## Inline expressions
+
+Two plus two is {2 + 2}, and a quick array join: {["go", "react", "mdx"].join(" + ")}.
+
+Look at the right column to see the interactive **API Playground** generated
+from this page's frontmatter, with its **Request** and **Response** tabs.

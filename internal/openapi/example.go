@@ -2,131 +2,108 @@ package openapi
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 )
 
+// GenerateExampleValue builds an example value for a schema. An explicit
+// `example` on the schema always wins; otherwise it composes from properties /
+// items / enum, falling back to type-based placeholders.
 func GenerateExampleValue(schema *Schema, name string) interface{} {
 	if schema == nil {
 		return "example"
 	}
-	if examples, ok := schema.Example.([]interface{}); ok {
-		if len(examples) > 0 {
-			return examples[0]
-		}
-	}
+
+	// 1) Explicit example on the schema wins (any type).
 	if schema.Example != nil {
-		switch schema.Type {
-		case "array":
-			if arr, ok := schema.Example.([]interface{}); ok {
-				return arr
-			}
-			if schema.Items != nil {
-				return []interface{}{GenerateExampleValue(schema.Items, "item1"), GenerateExampleValue(schema.Items, "item2")}
-			}
-			return []interface{}{"default_array_value"}
-		case "object":
-			if m, ok := schema.Example.(map[string]interface{}); ok {
-				return m
-			}
-			if len(schema.Properties) > 0 {
-				m := map[string]interface{}{}
-				for k, v := range schema.Properties {
-					m[k] = GenerateExampleValue(v, k)
+		return schema.Example
+	}
+
+	// 2) Composition keywords (allOf merges objects; one/anyOf picks the first).
+	if len(schema.Properties) == 0 {
+		if len(schema.AllOf) > 0 {
+			merged := map[string]interface{}{}
+			for _, sub := range schema.AllOf {
+				if v, ok := GenerateExampleValue(sub, name).(map[string]interface{}); ok {
+					for k, val := range v {
+						merged[k] = val
+					}
 				}
-				return m
 			}
-			return map[string]interface{}{"default_key": "default_value"}
-		default:
-			if schema.Type == "string" {
-				return "default_string_value"
+			if len(merged) > 0 {
+				return merged
 			}
-			return fmt.Sprintf("%v", schema.Example)
+		}
+		if schema.Type == "" {
+			if len(schema.OneOf) > 0 {
+				return GenerateExampleValue(schema.OneOf[0], name)
+			}
+			if len(schema.AnyOf) > 0 {
+				return GenerateExampleValue(schema.AnyOf[0], name)
+			}
 		}
 	}
+
+	// 3) Structural types.
+	switch schema.Type {
+	case "object":
+		return objectExample(schema)
+	case "array":
+		if schema.Items != nil {
+			return []interface{}{GenerateExampleValue(schema.Items, name)}
+		}
+		return []interface{}{}
+	}
+
+	// 4) Enum: first value.
 	if len(schema.Enum) > 0 {
-		switch schema.Type {
-		case "array":
-			if arr, ok := schema.Enum[0].([]interface{}); ok {
-				return arr
-			}
-			if schema.Items != nil {
-				return []interface{}{GenerateExampleValue(schema.Items, "enum_item1"), GenerateExampleValue(schema.Items, "enum_item2")}
-			}
-			return []interface{}{"default_enum_array_value"}
-		case "object":
-			if m, ok := schema.Enum[0].(map[string]interface{}); ok {
-				return m
-			}
-			if len(schema.Properties) > 0 {
-				m := map[string]interface{}{}
-				for k, v := range schema.Properties {
-					m[k] = GenerateExampleValue(v, k)
-				}
-				return m
-			}
-			return map[string]interface{}{"default_enum_key": "default_enum_value"}
-		default:
-			if schema.Type == "string" {
-				return "default_enum_string_value"
-			}
-			return fmt.Sprintf("%v", schema.Enum[0])
-		}
+		return schema.Enum[0]
 	}
+
+	// 5) Type-based placeholders.
 	switch schema.Type {
 	case "string":
-		if strings.Contains(strings.ToLower(name), "email") {
-			return "user@example.com"
-		}
-		if strings.Contains(strings.ToLower(name), "id") {
-			return "123"
-		}
-		if strings.Contains(strings.ToLower(name), "date") {
+		lname := strings.ToLower(name)
+		switch {
+		case schema.Format == "date-time" || strings.Contains(lname, "date"):
 			return "2023-12-31T23:59:59Z"
+		case schema.Format == "email" || strings.Contains(lname, "email"):
+			return "user@example.com"
+		case schema.Format == "uuid":
+			return "123e4567-e89b-12d3-a456-426614174000"
+		case strings.Contains(lname, "id"):
+			return "123"
+		default:
+			return name + "_example"
 		}
-		return name + "_example"
 	case "integer", "number":
 		return 42
 	case "boolean":
 		return true
-	case "array":
-		var arr []interface{}
-		if schema.Items != nil {
-			arr = append(arr, GenerateExampleValue(schema.Items, name))
-			arr = append(arr, GenerateExampleValue(schema.Items, name+"2"))
-		}
-		return arr
-	case "object":
-		if len(schema.Properties) > 0 {
-			m := map[string]interface{}{}
-			for k, v := range schema.Properties {
-				m[k] = GenerateExampleValue(v, k)
-			}
-			return m
-		}
-		return map[string]interface{}{}
+	}
+
+	// 6) Untyped object with properties.
+	if len(schema.Properties) > 0 {
+		return objectExample(schema)
 	}
 	return "example"
 }
 
+func objectExample(schema *Schema) map[string]interface{} {
+	m := map[string]interface{}{}
+	for k, v := range schema.Properties {
+		m[k] = GenerateExampleValue(v, k)
+	}
+	return m
+}
+
+// GenerateExampleObject renders a pretty-printed JSON example for a schema.
 func GenerateExampleObject(schema *Schema) string {
 	if schema == nil {
 		return "{}"
 	}
-	if schema.Example != nil {
-		b, _ := json.MarshalIndent(schema.Example, "", "  ")
-		return string(b)
+	b, err := json.MarshalIndent(GenerateExampleValue(schema, "root"), "", "  ")
+	if err != nil {
+		return "{}"
 	}
-	var val interface{}
-	if schema.Type == "object" && len(schema.Properties) > 0 {
-		m := map[string]interface{}{}
-		for k, v := range schema.Properties {
-			m[k] = GenerateExampleValue(v, k)
-		}
-		val = m
-	} else {
-		val = GenerateExampleValue(schema, "root")
-	}
-	b, _ := json.MarshalIndent(val, "", "  ")
 	return string(b)
 }

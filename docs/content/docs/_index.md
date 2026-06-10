@@ -1,4 +1,5 @@
 ---
+icon: book-open
 nav:
   - getting-started
   - configuration

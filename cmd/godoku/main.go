@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -14,10 +15,10 @@ import (
 	"github.com/omurilo/godoku/internal/server"
 )
 
-const version = "0.1.0"
+const version = "0.2.0"
 
 func main() {
-	generator.SetEmbedFS(godoku.TemplatesFS, godoku.StaticFS)
+	generator.SetEmbedFS(godoku.AppFS)
 	if len(os.Args) < 2 {
 		printUsage()
 		os.Exit(1)
@@ -53,8 +54,8 @@ Usage:
 
 Commands:
   init [path]    Initialize a new Godoku project
-  build          Build the static site
-  serve          Start a development server
+  build [path]   Build the static site (defaults to the current directory)
+  serve [path]   Start a development server (defaults to the current directory)
   version        Show version
 
 Serve Options:
@@ -63,9 +64,9 @@ Serve Options:
 }
 
 func cmdBuild() {
-	rootDir, err := os.Getwd()
+	rootDir, err := resolveRoot(os.Args[2:])
 	if err != nil {
-		log.Fatalf("Error getting working directory: %v", err)
+		log.Fatalf("Error resolving project directory: %v", err)
 	}
 
 	cfg, err := config.Load(rootDir)
@@ -79,23 +80,14 @@ func cmdBuild() {
 		log.Fatalf("Build failed: %v", err)
 	}
 
-	fmt.Printf("Site built in %s -> public/\n", time.Since(start).Round(time.Millisecond))
+	fmt.Printf("Site built in %s -> dist/\n", time.Since(start).Round(time.Millisecond))
 }
 
 func cmdServe() {
-	rootDir, err := os.Getwd()
-	if err != nil {
-		log.Fatalf("Error getting working directory: %v", err)
-	}
-
-	cfg, err := config.Load(rootDir)
-	if err != nil {
-		log.Fatalf("Error loading config: %v", err)
-	}
-
 	port := 3000
 	watch := false
 
+	var positional []string
 	args := os.Args[2:]
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -110,11 +102,44 @@ func cmdServe() {
 			}
 		case "-w", "--watch":
 			watch = true
+		default:
+			positional = append(positional, args[i])
 		}
+	}
+
+	rootDir, err := resolveRoot(positional)
+	if err != nil {
+		log.Fatalf("Error resolving project directory: %v", err)
+	}
+
+	cfg, err := config.Load(rootDir)
+	if err != nil {
+		log.Fatalf("Error loading config: %v", err)
 	}
 
 	srv := server.New(cfg, rootDir, port, watch)
 	if err := srv.Start(); err != nil {
 		log.Fatalf("Server error: %v", err)
 	}
+}
+
+// resolveRoot returns the absolute project directory from the first positional
+// argument, defaulting to the current working directory when none is given.
+func resolveRoot(args []string) (string, error) {
+	dir := "."
+	if len(args) > 0 && args[0] != "" {
+		dir = args[0]
+	}
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return "", err
+	}
+	info, err := os.Stat(abs)
+	if err != nil {
+		return "", fmt.Errorf("%s: %w", dir, err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("%s is not a directory", dir)
+	}
+	return abs, nil
 }

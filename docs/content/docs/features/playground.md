@@ -2,6 +2,37 @@
 title: API Playground
 description: Interactive playground for testing API endpoints directly from the documentation
 order: 3
+api:
+  method: GET
+  path: /users/{id}
+  baseUrl: https://api.example.com
+  summary: Fetch a single user by id.
+  params:
+    - name: id
+      in: path
+      required: true
+      type: string
+      description: The user identifier.
+    - name: expand
+      in: query
+      type: string
+  requestExample: |
+    GET /users/42 HTTP/1.1
+    Host: api.example.com
+    Authorization: Bearer <token>
+  responses:
+    - status: "200"
+      description: User found.
+      example: |
+        {
+          "id": "42",
+          "name": "Ada Lovelace",
+          "email": "ada@example.com"
+        }
+    - status: "404"
+      description: No user with that id.
+      example: |
+        { "error": "not_found" }
 ---
 
 # API Playground

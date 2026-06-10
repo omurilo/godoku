@@ -40,7 +40,7 @@ func (s *Server) Start() error {
 		go s.watchFiles(gen)
 	}
 
-	publicDir := filepath.Join(s.RootDir, "public")
+	publicDir := filepath.Join(s.RootDir, "dist")
 	fileServer := http.FileServer(http.Dir(publicDir))
 
 	mux := http.NewServeMux()

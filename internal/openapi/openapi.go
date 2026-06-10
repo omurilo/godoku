@@ -85,7 +85,16 @@ type Response struct {
 }
 
 type MediaType struct {
-	Schema *Schema `json:"schema,omitempty" yaml:"schema,omitempty"`
+	Schema   *Schema                  `json:"schema,omitempty" yaml:"schema,omitempty"`
+	Example  interface{}              `json:"example,omitempty" yaml:"example,omitempty"`
+	Examples map[string]ExampleObject `json:"examples,omitempty" yaml:"examples,omitempty"`
+}
+
+// ExampleObject is an OpenAPI Example Object (the `value` is what we render).
+type ExampleObject struct {
+	Summary     string      `json:"summary,omitempty" yaml:"summary,omitempty"`
+	Description string      `json:"description,omitempty" yaml:"description,omitempty"`
+	Value       interface{} `json:"value,omitempty" yaml:"value,omitempty"`
 }
 
 type Schema struct {
