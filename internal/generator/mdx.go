@@ -145,6 +145,9 @@ func (g *Generator) buildMDXPages() error {
 				"dismissible": g.Config.Banner.Dismissible,
 			}
 		}
+		if f := footerProps(g.Config); f != nil {
+			p["footer"] = f
+		}
 		return p
 	}
 
@@ -562,6 +565,33 @@ func buildLogo(cfg config.Config) map[string]any {
 
 // buildTopNav builds the header navigation from config.Navigation, keeping only
 // sections that actually have pages (plus non-section links like /api).
+// footerProps builds the footer payload from the declarative godoku.yaml
+// `footer` config. Returns nil when no footer is configured.
+func footerProps(cfg config.Config) map[string]any {
+	f := cfg.Footer
+	if f.Copyright == "" && len(f.Columns) == 0 && len(f.Social) == 0 {
+		return nil
+	}
+	cols := make([]map[string]any, 0, len(f.Columns))
+	for _, c := range f.Columns {
+		links := make([]map[string]any, 0, len(c.Links))
+		for _, l := range c.Links {
+			links = append(links, map[string]any{"label": l.Label, "href": l.Href})
+		}
+		cols = append(cols, map[string]any{"title": c.Title, "links": links})
+	}
+	social := make([]map[string]any, 0, len(f.Social))
+	for _, s := range f.Social {
+		social = append(social, map[string]any{"icon": s.Icon, "href": s.Href, "label": s.Label})
+	}
+	return map[string]any{
+		"copyright": f.Copyright,
+		"position":  f.Position,
+		"columns":   cols,
+		"social":    social,
+	}
+}
+
 // buildTopNav builds the header navigation straight from the declarative
 // godoku.yaml `navigation` list. Section entries (docs/guides/tutorials) with no
 // content are hidden so a configured-but-empty section doesn't 404; everything

@@ -2341,3 +2341,98 @@ a {
   margin: 0.75rem 0;
 }
 
+/* ---- footer ---------------------------------------------------------- */
+
+.gd-footer {
+  border-top: 1px solid hsl(var(--border));
+  margin-top: 4rem;
+}
+.gd-footer-inner {
+  max-width: 96rem;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 2.5rem;
+}
+@media (min-width: 640px) {
+  .gd-footer-inner {
+    padding-left: 2.5rem;
+    padding-right: 2.5rem;
+  }
+}
+.gd-footer-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2rem;
+  margin-bottom: 2.5rem;
+}
+@media (min-width: 768px) {
+  .gd-footer-cols {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.gd-footer-col-title {
+  margin: 0 0 0.85rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+.gd-footer-col ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.gd-footer-link {
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+  transition: color 0.15s ease;
+}
+.gd-footer-link:hover {
+  color: hsl(var(--foreground));
+}
+.gd-footer-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding-top: 1.5rem;
+  border-top: 1px solid hsl(var(--border));
+}
+.gd-footer-copy {
+  margin: 0;
+  font-size: 0.85rem;
+  color: hsl(var(--muted-foreground));
+}
+.gd-footer-social {
+  display: flex;
+  gap: 0.4rem;
+}
+.gd-footer-social-link {
+  display: inline-grid;
+  place-items: center;
+  height: 2rem;
+  width: 2rem;
+  border-radius: 0.5rem;
+  color: hsl(var(--muted-foreground));
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.gd-footer-social-link:hover {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--foreground));
+}
+
+/* centered footer (position: center) */
+.gd-footer--center .gd-footer-cols {
+  text-align: center;
+}
+.gd-footer--center .gd-footer-col ul {
+  align-items: center;
+}
+.gd-footer--center .gd-footer-bottom {
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+}
+

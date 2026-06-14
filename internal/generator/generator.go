@@ -271,6 +271,9 @@ func (g *Generator) buildAPI(apiFiles []string) error {
 			"dismissible": g.Config.Banner.Dismissible,
 		}
 	}
+	if f := footerProps(g.Config); f != nil {
+		catalogProps["footer"] = f
+	}
 
 	if err := b.BuildPage(builder.PageInput{
 		Source:      []byte(""),
@@ -543,6 +546,9 @@ func (g *Generator) buildSingleAPI(b *builder.Builder, logo map[string]any, topN
 				"color":       g.Config.Banner.Color,
 				"dismissible": g.Config.Banner.Dismissible,
 			}
+		}
+		if f := footerProps(g.Config); f != nil {
+			p["footer"] = f
 		}
 		return p
 	}

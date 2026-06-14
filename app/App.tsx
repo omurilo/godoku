@@ -5,6 +5,7 @@ import { Sidebar } from "./components/Sidebar";
 import { RightColumn } from "./components/RightColumn";
 import { Catalog } from "./components/Catalog";
 import { Banner } from "./components/Banner";
+import { Footer } from "./components/Footer";
 import { PageNav } from "./components/PageNav";
 import { ApiReference } from "./components/ApiReference";
 import { mdxComponents } from "./components/mdx";
@@ -28,6 +29,7 @@ export default function App(props: AppProps) {
     logo,
     repoUrl,
     banner,
+    footer,
     catalog,
     catalogTitle,
     apiReference,
@@ -80,6 +82,8 @@ export default function App(props: AppProps) {
 
         {showRight ? <RightColumn toc={toc} api={api} /> : null}
       </div>
+
+      {footer ? <Footer footer={footer} /> : null}
     </div>
   );
 }

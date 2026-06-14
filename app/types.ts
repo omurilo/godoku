@@ -86,6 +86,29 @@ export interface ApiReferenceData {
   groups: ApiReferenceGroup[];
 }
 
+export interface FooterLink {
+  label: string;
+  href: string;
+}
+
+export interface FooterColumn {
+  title: string;
+  links: FooterLink[];
+}
+
+export interface FooterSocial {
+  icon: string;
+  href: string;
+  label?: string;
+}
+
+export interface FooterData {
+  copyright?: string;
+  position?: string; // left | center
+  columns?: FooterColumn[];
+  social?: FooterSocial[];
+}
+
 export interface BannerData {
   message: string;
   color?: string; // info | tip | warning | danger | ""
@@ -135,6 +158,7 @@ export interface AppProps {
   logo?: BrandLogo;
   repoUrl?: string;
   banner?: BannerData;
+  footer?: FooterData;
   /** When false, the left navigation sidebar is hidden (homepage, catalogs). */
   sidebar?: boolean;
   /** Previous/next page links shown at the foot of a doc page. */
