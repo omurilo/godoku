@@ -2359,15 +2359,13 @@ a {
   }
 }
 .gd-footer-cols {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 2rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem 4rem;
   margin-bottom: 2.5rem;
 }
-@media (min-width: 768px) {
-  .gd-footer-cols {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
+.gd-footer-col {
+  min-width: 8rem;
 }
 .gd-footer-col-title {
   margin: 0 0 0.85rem;
@@ -2425,6 +2423,7 @@ a {
 
 /* centered footer (position: center) */
 .gd-footer--center .gd-footer-cols {
+  justify-content: center;
   text-align: center;
 }
 .gd-footer--center .gd-footer-col ul {

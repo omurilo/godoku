@@ -1,6 +1,6 @@
 import React from "react";
 import { cn } from "../lib/utils";
-import { LucideIcon } from "./LucideIcon";
+import { SocialIcon } from "./SocialIcon";
 import type { FooterData } from "../types";
 
 /**
@@ -52,7 +52,7 @@ export function Footer({ footer }: { footer: FooterData }) {
                   target="_blank"
                   rel="noreferrer noopener"
                 >
-                  <LucideIcon name={s.icon} size={18} />
+                  <SocialIcon name={s.icon} size={18} />
                 </a>
               ))}
             </div>
